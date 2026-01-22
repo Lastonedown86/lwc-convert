@@ -1,0 +1,43 @@
+<apex:page standardController="Account" extensions="SamplePageController" lightningStylesheets="true">
+    <apex:form id="mainForm">
+        <apex:pageBlock title="Account Information" mode="edit">
+            <apex:pageMessages />
+
+            <apex:pageBlockSection title="Basic Info" columns="2">
+                <apex:inputField value="{!Account.Name}" required="true"/>
+                <apex:inputField value="{!Account.Industry}"/>
+                <apex:inputField value="{!Account.Phone}"/>
+                <apex:inputField value="{!Account.Website}"/>
+            </apex:pageBlockSection>
+
+            <apex:pageBlockSection title="Address" columns="1">
+                <apex:inputField value="{!Account.BillingStreet}"/>
+                <apex:inputField value="{!Account.BillingCity}"/>
+                <apex:inputField value="{!Account.BillingState}"/>
+                <apex:inputField value="{!Account.BillingPostalCode}"/>
+            </apex:pageBlockSection>
+
+            <apex:pageBlockButtons location="bottom">
+                <apex:commandButton action="{!save}" value="Save"/>
+                <apex:commandButton action="{!cancel}" value="Cancel"/>
+            </apex:pageBlockButtons>
+        </apex:pageBlock>
+
+        <apex:pageBlock title="Related Contacts">
+            <apex:pageBlockTable value="{!contacts}" var="c">
+                <apex:column headerValue="Name">
+                    <apex:outputLink value="/{!c.Id}">{!c.Name}</apex:outputLink>
+                </apex:column>
+                <apex:column value="{!c.Email}"/>
+                <apex:column value="{!c.Phone}"/>
+                <apex:column headerValue="Actions">
+                    <apex:commandLink action="{!editContact}" value="Edit">
+                        <apex:param name="contactId" value="{!c.Id}"/>
+                    </apex:commandLink>
+                </apex:column>
+            </apex:pageBlockTable>
+        </apex:pageBlock>
+    </apex:form>
+
+    <apex:actionFunction name="refreshContacts" action="{!loadContacts}" rerender="contactPanel"/>
+</apex:page>

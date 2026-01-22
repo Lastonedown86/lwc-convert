@@ -1,0 +1,129 @@
+{
+  "aura": {
+    "init": {
+      "lwc": "connectedCallback",
+      "timing": "After component inserted into DOM",
+      "notes": "Called when component is inserted into DOM. Parent connectedCallback fires before child."
+    },
+    "render": {
+      "lwc": "renderedCallback",
+      "timing": "After every render",
+      "notes": "Called after every render. Use isRendered flag to run logic only once."
+    },
+    "afterRender": {
+      "lwc": "renderedCallback",
+      "timing": "After every render",
+      "notes": "Maps to renderedCallback - use flag for first-render-only logic"
+    },
+    "rerender": {
+      "lwc": "renderedCallback",
+      "timing": "After every render",
+      "notes": "LWC automatically re-renders when reactive properties change"
+    },
+    "unrender": {
+      "lwc": "disconnectedCallback",
+      "timing": "Before component removed from DOM",
+      "notes": "Clean up event listeners, intervals, and subscriptions"
+    },
+    "destroy": {
+      "lwc": "disconnectedCallback",
+      "timing": "Before component removed from DOM",
+      "notes": "Use for cleanup: remove event listeners, clear intervals"
+    }
+  },
+  "visualforce": {
+    "pageLoad": {
+      "lwc": "connectedCallback",
+      "notes": "Page load logic moves to connectedCallback"
+    },
+    "action": {
+      "lwc": "connectedCallback",
+      "notes": "Page action attribute logic moves to connectedCallback"
+    }
+  },
+  "lwcLifecycle": {
+    "constructor": {
+      "purpose": "Initialize component state",
+      "timing": "First in lifecycle, before DOM",
+      "canAccessDom": false,
+      "canAccessProperties": false,
+      "notes": "Don't access this.template or child elements. Initialize state only."
+    },
+    "connectedCallback": {
+      "purpose": "Component inserted into DOM",
+      "timing": "After constructor, when inserted",
+      "canAccessDom": false,
+      "canAccessProperties": true,
+      "notes": "Can access public properties. this.template may not be ready. Fire initial data loads."
+    },
+    "renderedCallback": {
+      "purpose": "After render cycle completes",
+      "timing": "After every render",
+      "canAccessDom": true,
+      "canAccessProperties": true,
+      "notes": "Safe to access this.template.querySelector. Use flags to prevent infinite loops."
+    },
+    "disconnectedCallback": {
+      "purpose": "Component removed from DOM",
+      "timing": "Before removal",
+      "canAccessDom": true,
+      "canAccessProperties": true,
+      "notes": "Clean up listeners, intervals, and external subscriptions."
+    },
+    "errorCallback": {
+      "purpose": "Handle errors from child components",
+      "timing": "When descendant throws error",
+      "canAccessDom": true,
+      "canAccessProperties": true,
+      "notes": "Catches errors from lifecycle hooks of descendants. Log or display error."
+    }
+  },
+  "patterns": {
+    "firstRenderOnly": {
+      "description": "Run logic only on first render",
+      "code": [
+        "isRendered = false;",
+        "",
+        "renderedCallback() {",
+        "    if (this.isRendered) return;",
+        "    this.isRendered = true;",
+        "    // First render logic here",
+        "}"
+      ]
+    },
+    "cleanupPattern": {
+      "description": "Properly clean up intervals and listeners",
+      "code": [
+        "intervalId;",
+        "",
+        "connectedCallback() {",
+        "    this.intervalId = setInterval(() => {",
+        "        // polling logic",
+        "    }, 5000);",
+        "}",
+        "",
+        "disconnectedCallback() {",
+        "    if (this.intervalId) {",
+        "        clearInterval(this.intervalId);",
+        "    }",
+        "}"
+      ]
+    },
+    "eventCleanup": {
+      "description": "Clean up window/document event listeners",
+      "code": [
+        "handleResize = (event) => {",
+        "    // handle resize",
+        "};",
+        "",
+        "connectedCallback() {",
+        "    window.addEventListener('resize', this.handleResize);",
+        "}",
+        "",
+        "disconnectedCallback() {",
+        "    window.removeEventListener('resize', this.handleResize);",
+        "}"
+      ]
+    }
+  }
+}

@@ -1,0 +1,53 @@
+<apex:page controller="FormulaPageController">
+    <!-- Test page with VF formulas that should convert to JS getters -->
+    
+    <apex:outputPanel rendered="{!NOT(ISBLANK(contactRecord.Id))}">
+        <p>Contact exists!</p>
+    </apex:outputPanel>
+    
+    <apex:outputPanel rendered="{!ISBLANK(selectedId)}">
+        <p>No selection made</p>
+    </apex:outputPanel>
+    
+    <apex:outputPanel rendered="{!AND(isAdmin, hasPermission)}">
+        <p>Admin with permission</p>
+    </apex:outputPanel>
+    
+    <apex:outputPanel rendered="{!OR(showDetails, forceShow)}">
+        <p>Showing details</p>
+    </apex:outputPanel>
+    
+    <apex:outputPanel rendered="{!NOT(isDisabled)}">
+        <p>Enabled</p>
+    </apex:outputPanel>
+    
+    <!-- Test form without inputs - should NOT generate lightning-record-edit-form -->
+    <apex:form id="displayForm">
+        <apex:pageBlock title="Display Only">
+            <apex:outputText value="{!record.Name}"/>
+            <apex:outputField value="{!record.Industry}"/>
+        </apex:pageBlock>
+    </apex:form>
+    
+    <!-- Test form with inputs - SHOULD generate lightning-record-edit-form -->
+    <apex:form id="editForm">
+        <apex:pageBlock title="Edit Form">
+            <apex:inputField value="{!record.Name}"/>
+            <apex:inputText value="{!searchTerm}"/>
+        </apex:pageBlock>
+    </apex:form>
+    
+    <!-- Test actionFunction with params - should use imperative pattern -->
+    <apex:actionFunction name="updateRecord" action="{!saveRecord}" rerender="resultPanel">
+        <apex:param name="recordId" assignTo="{!selectedRecordId}" value=""/>
+        <apex:param name="newValue" assignTo="{!updateValue}" value=""/>
+    </apex:actionFunction>
+    
+    <!-- Test actionFunction without params -->
+    <apex:actionFunction name="refreshData" action="{!loadData}" rerender="dataPanel"/>
+    
+    <!-- Controller property bindings -->
+    <apex:outputText value="{!contactRecord.Name}"/>
+    <apex:outputText value="{!contactRecord.Email}"/>
+    <apex:outputText value="{!accountData.BillingCity}"/>
+</apex:page>

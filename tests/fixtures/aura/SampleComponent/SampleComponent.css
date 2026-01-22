@@ -1,0 +1,18 @@
+.THIS {
+    display: block;
+}
+
+.THIS .contact-item {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    border-bottom: 1px solid #dddbda;
+}
+
+.THIS .contact-item:hover {
+    background-color: #f3f2f2;
+}
+
+.THIS .contact-item span {
+    margin-left: 8px;
+}

@@ -1,0 +1,344 @@
+{
+  "components": {
+    "apex:page": {
+      "lwc": "template",
+      "notes": "Root element becomes <template>. Page-level attributes need handling."
+    },
+    "apex:form": {
+      "lwc": "lightning-record-edit-form",
+      "alternativeLwc": "form",
+      "notes": "Use lightning-record-edit-form for record operations, or plain form with lightning-inputs"
+    },
+    "apex:inputText": {
+      "lwc": "lightning-input",
+      "attributes": {
+        "value": "value",
+        "id": "data-id",
+        "styleClass": "class",
+        "disabled": "disabled",
+        "maxlength": "max-length",
+        "size": null
+      },
+      "events": {
+        "onchange": "onchange",
+        "onfocus": "onfocus",
+        "onblur": "onblur"
+      },
+      "notes": "Requires onchange handler to update reactive property"
+    },
+    "apex:inputTextarea": {
+      "lwc": "lightning-textarea",
+      "attributes": {
+        "value": "value",
+        "rows": null,
+        "cols": null,
+        "styleClass": "class"
+      },
+      "notes": "Use CSS for sizing instead of rows/cols"
+    },
+    "apex:inputCheckbox": {
+      "lwc": "lightning-input",
+      "attributes": {
+        "value": "checked",
+        "selected": "checked"
+      },
+      "typeOverride": "checkbox",
+      "notes": "Use type='checkbox' on lightning-input"
+    },
+    "apex:selectList": {
+      "lwc": "lightning-combobox",
+      "alternativeLwc": "lightning-dual-listbox",
+      "attributes": {
+        "value": "value",
+        "multiselect": null,
+        "size": null
+      },
+      "notes": "Use lightning-dual-listbox for multiselect"
+    },
+    "apex:selectOptions": {
+      "lwc": "options-property",
+      "notes": "Options are passed as a JavaScript array property"
+    },
+    "apex:selectOption": {
+      "lwc": "option-object",
+      "notes": "Individual options become objects in the options array: { label, value }"
+    },
+    "apex:selectRadio": {
+      "lwc": "lightning-radio-group",
+      "notes": "Radio buttons use lightning-radio-group component"
+    },
+    "apex:commandButton": {
+      "lwc": "lightning-button",
+      "attributes": {
+        "action": "onclick",
+        "value": "label",
+        "disabled": "disabled",
+        "styleClass": "class",
+        "reRender": null,
+        "status": null,
+        "oncomplete": null
+      },
+      "notes": "Action becomes onclick handler; reRender logic handled via reactive properties"
+    },
+    "apex:commandLink": {
+      "lwc": "lightning-button",
+      "alternativeLwc": "a",
+      "attributes": {
+        "action": "onclick",
+        "value": "label"
+      },
+      "notes": "Use variant='base' for link appearance, or use anchor tag"
+    },
+    "apex:outputText": {
+      "lwc": "text-interpolation",
+      "alternativeLwc": "lightning-formatted-text",
+      "notes": "Simple output can be direct text interpolation {value}"
+    },
+    "apex:outputLabel": {
+      "lwc": "label",
+      "notes": "Use HTML label element or include label in lightning-input"
+    },
+    "apex:outputField": {
+      "lwc": "lightning-output-field",
+      "notes": "Use within lightning-record-view-form"
+    },
+    "apex:inputField": {
+      "lwc": "lightning-input-field",
+      "notes": "Use within lightning-record-edit-form"
+    },
+    "apex:pageBlock": {
+      "lwc": "lightning-card",
+      "alternativeLwc": "div",
+      "attributes": {
+        "title": "title",
+        "mode": null
+      },
+      "notes": "lightning-card provides similar visual grouping"
+    },
+    "apex:pageBlockSection": {
+      "lwc": "lightning-layout",
+      "alternativeLwc": "div",
+      "notes": "Use lightning-layout for grid-based sections"
+    },
+    "apex:pageBlockSectionItem": {
+      "lwc": "lightning-layout-item",
+      "alternativeLwc": "div",
+      "notes": "Use lightning-layout-item within lightning-layout"
+    },
+    "apex:pageBlockButtons": {
+      "lwc": "div.slds-button-group",
+      "notes": "Use SLDS button-group classes"
+    },
+    "apex:pageBlockTable": {
+      "lwc": "lightning-datatable",
+      "attributes": {
+        "value": "data",
+        "var": null,
+        "columns": "columns"
+      },
+      "notes": "Columns defined as JavaScript array; iterate logic in columns definition"
+    },
+    "apex:column": {
+      "lwc": "column-definition",
+      "notes": "Becomes object in columns array: { label, fieldName, type }"
+    },
+    "apex:dataTable": {
+      "lwc": "lightning-datatable",
+      "notes": "Similar to pageBlockTable conversion"
+    },
+    "apex:dataList": {
+      "lwc": "template-for-each",
+      "notes": "Use for:each directive with ul/li elements"
+    },
+    "apex:repeat": {
+      "lwc": "template-for-each",
+      "attributes": {
+        "value": "for:each",
+        "var": "for:item"
+      },
+      "notes": "Becomes for:each template directive"
+    },
+    "apex:panelGrid": {
+      "lwc": "lightning-layout",
+      "notes": "Use lightning-layout with column specifications"
+    },
+    "apex:panelGroup": {
+      "lwc": "div",
+      "notes": "Simple div grouping, or slot for component composition"
+    },
+    "apex:outputPanel": {
+      "lwc": "div",
+      "attributes": {
+        "layout": null,
+        "rendered": "if:true/if:false"
+      },
+      "notes": "Use div with conditional rendering directive"
+    },
+    "apex:actionFunction": {
+      "lwc": "imperative-apex",
+      "notes": "Replace with imported Apex method called imperatively"
+    },
+    "apex:actionSupport": {
+      "lwc": "event-handler",
+      "notes": "Event handling via onchange, onclick etc. handlers"
+    },
+    "apex:actionPoller": {
+      "lwc": "setInterval",
+      "notes": "Use setInterval in connectedCallback, clear in disconnectedCallback"
+    },
+    "apex:actionStatus": {
+      "lwc": "lightning-spinner",
+      "notes": "Show/hide spinner based on loading state property"
+    },
+    "apex:messages": {
+      "lwc": "ShowToastEvent",
+      "alternativeLwc": "lightning-messages",
+      "notes": "Use toast for user notifications or lightning-messages component"
+    },
+    "apex:pageMessages": {
+      "lwc": "ShowToastEvent",
+      "notes": "Use ShowToastEvent from lightning/platformShowToastEvent"
+    },
+    "apex:message": {
+      "lwc": "lightning-helptext",
+      "notes": "Field-level messages use lightning-helptext or custom error display"
+    },
+    "apex:facet": {
+      "lwc": "slot",
+      "notes": "Use named slots for content projection"
+    },
+    "apex:tab": {
+      "lwc": "lightning-tab",
+      "notes": "Use within lightning-tabset"
+    },
+    "apex:tabPanel": {
+      "lwc": "lightning-tabset",
+      "notes": "Container for lightning-tab components"
+    },
+    "apex:detail": {
+      "lwc": "lightning-record-form",
+      "notes": "Use lightning-record-form with mode='view' or 'edit'"
+    },
+    "apex:relatedList": {
+      "lwc": "lightning-related-list-view",
+      "notes": "Use lightning-related-list-view component"
+    },
+    "apex:enhancedList": {
+      "lwc": "lightning-datatable",
+      "notes": "Build custom datatable with search/filter"
+    },
+    "apex:iframe": {
+      "lwc": "iframe",
+      "notes": "Use standard iframe, be mindful of CSP restrictions"
+    },
+    "apex:image": {
+      "lwc": "img",
+      "notes": "Use standard img element, static resources via @salesforce/resourceUrl"
+    },
+    "apex:includeScript": {
+      "lwc": "loadScript",
+      "notes": "Use loadScript from lightning/platformResourceLoader"
+    },
+    "apex:stylesheet": {
+      "lwc": "loadStyle",
+      "notes": "Use loadStyle from lightning/platformResourceLoader"
+    },
+    "apex:slds": {
+      "lwc": null,
+      "notes": "SLDS is automatically available in LWC"
+    },
+    "apex:variable": {
+      "lwc": "class-property",
+      "notes": "Define as reactive class property"
+    },
+    "apex:param": {
+      "lwc": "custom-event-detail",
+      "notes": "Pass data via custom event detail or component properties"
+    }
+  },
+  "expressions": {
+    "controllerProperty": {
+      "pattern": "\\{!([a-zA-Z_][a-zA-Z0-9_]*)\\}",
+      "replacement": "{$1}",
+      "notes": "Controller properties become class properties"
+    },
+    "objectField": {
+      "pattern": "\\{!([a-zA-Z_][a-zA-Z0-9_]*)\\.([a-zA-Z_][a-zA-Z0-9_]*)\\}",
+      "replacement": "{$1.$2}",
+      "notes": "Object field access preserved"
+    },
+    "currentPage": {
+      "pattern": "\\{!\\$CurrentPage\\.parameters\\.(\\w+)\\}",
+      "replacement": "currentPageReference",
+      "notes": "Use CurrentPageReference wire adapter"
+    },
+    "label": {
+      "pattern": "\\{!\\$Label\\.(\\w+)\\.(\\w+)\\}",
+      "replacement": "@salesforce/label",
+      "notes": "Import labels using @salesforce/label/namespace.labelName"
+    },
+    "resource": {
+      "pattern": "\\{!\\$Resource\\.(\\w+)\\}",
+      "replacement": "@salesforce/resourceUrl",
+      "notes": "Import static resources using @salesforce/resourceUrl/resourceName"
+    },
+    "user": {
+      "pattern": "\\{!\\$User\\.(\\w+)\\}",
+      "replacement": "@salesforce/user",
+      "notes": "Use @salesforce/user/Id or getRecord with User object"
+    },
+    "objectType": {
+      "pattern": "\\{!\\$ObjectType\\.(\\w+)\\.fields\\.(\\w+)\\.label\\}",
+      "replacement": "@salesforce/schema",
+      "notes": "Import field info using @salesforce/schema/Object.Field"
+    }
+  },
+  "globalVariables": {
+    "$CurrentPage": {
+      "lwc": "CurrentPageReference",
+      "import": "import { CurrentPageReference } from 'lightning/navigation';",
+      "notes": "Wire CurrentPageReference to access page state"
+    },
+    "$User": {
+      "lwc": "@salesforce/user",
+      "import": "import userId from '@salesforce/user/Id';",
+      "notes": "Import user info from @salesforce/user"
+    },
+    "$Label": {
+      "lwc": "@salesforce/label",
+      "import": "import labelName from '@salesforce/label/c.LabelName';",
+      "notes": "Import each label individually"
+    },
+    "$Resource": {
+      "lwc": "@salesforce/resourceUrl",
+      "import": "import resourceName from '@salesforce/resourceUrl/ResourceName';",
+      "notes": "Import static resources"
+    },
+    "$Api": {
+      "lwc": "platformConstant",
+      "notes": "API version handled by platform"
+    },
+    "$Action": {
+      "lwc": null,
+      "notes": "Actions handled differently in LWC - use navigation or Apex"
+    }
+  },
+  "dataAccess": {
+    "controllerGetter": {
+      "lwc": "@wire",
+      "notes": "Read-only data uses wire service"
+    },
+    "actionMethod": {
+      "lwc": "imperative-apex",
+      "notes": "Methods that modify data use imperative Apex"
+    },
+    "remoteAction": {
+      "lwc": "imperative-apex",
+      "notes": "Remote actions become imperative Apex calls"
+    },
+    "actionFunction": {
+      "lwc": "imperative-apex",
+      "notes": "Action functions become imperative Apex calls"
+    }
+  }
+}

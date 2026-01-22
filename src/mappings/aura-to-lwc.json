@@ -1,0 +1,321 @@
+{
+  "components": {
+    "aura:component": {
+      "lwc": "template",
+      "notes": "Root element becomes <template>"
+    },
+    "aura:if": {
+      "lwc": "template",
+      "attributes": {
+        "isTrue": "if:true",
+        "isFalse": "if:false"
+      },
+      "notes": "Conditional rendering using template directives"
+    },
+    "aura:iteration": {
+      "lwc": "template",
+      "attributes": {
+        "items": "for:each",
+        "var": "for:item",
+        "indexVar": "for:index"
+      },
+      "requiresKey": true,
+      "notes": "Iteration requires key attribute on first child element"
+    },
+    "aura:set": {
+      "lwc": null,
+      "notes": "Attribute sets handled differently in LWC - set via JavaScript"
+    },
+    "aura:handler": {
+      "lwc": null,
+      "notes": "Event handlers defined as class methods and bound in template"
+    },
+    "aura:method": {
+      "lwc": "@api method",
+      "notes": "Public methods decorated with @api"
+    },
+    "aura:registerEvent": {
+      "lwc": "CustomEvent",
+      "notes": "Events dispatched using CustomEvent and dispatchEvent()"
+    },
+    "aura:attribute": {
+      "lwc": "property",
+      "notes": "Attributes become class properties, public ones use @api"
+    },
+    "lightning:button": {
+      "lwc": "lightning-button",
+      "attributes": {
+        "onclick": "onclick",
+        "label": "label",
+        "variant": "variant",
+        "disabled": "disabled",
+        "name": "name",
+        "title": "title",
+        "iconName": "icon-name",
+        "iconPosition": "icon-position"
+      }
+    },
+    "lightning:input": {
+      "lwc": "lightning-input",
+      "attributes": {
+        "type": "type",
+        "label": "label",
+        "value": "value",
+        "placeholder": "placeholder",
+        "required": "required",
+        "disabled": "disabled",
+        "name": "name",
+        "onchange": "onchange"
+      }
+    },
+    "lightning:card": {
+      "lwc": "lightning-card",
+      "attributes": {
+        "title": "title",
+        "iconName": "icon-name",
+        "variant": "variant"
+      }
+    },
+    "lightning:icon": {
+      "lwc": "lightning-icon",
+      "attributes": {
+        "iconName": "icon-name",
+        "size": "size",
+        "variant": "variant",
+        "alternativeText": "alternative-text"
+      }
+    },
+    "lightning:spinner": {
+      "lwc": "lightning-spinner",
+      "attributes": {
+        "alternativeText": "alternative-text",
+        "size": "size",
+        "variant": "variant"
+      }
+    },
+    "lightning:datatable": {
+      "lwc": "lightning-datatable",
+      "attributes": {
+        "data": "data",
+        "columns": "columns",
+        "keyField": "key-field",
+        "hideCheckboxColumn": "hide-checkbox-column",
+        "onrowselection": "onrowselection",
+        "onrowaction": "onrowaction"
+      }
+    },
+    "lightning:recordEditForm": {
+      "lwc": "lightning-record-edit-form",
+      "attributes": {
+        "recordId": "record-id",
+        "objectApiName": "object-api-name",
+        "onsubmit": "onsubmit",
+        "onsuccess": "onsuccess",
+        "onerror": "onerror"
+      }
+    },
+    "lightning:recordViewForm": {
+      "lwc": "lightning-record-view-form",
+      "attributes": {
+        "recordId": "record-id",
+        "objectApiName": "object-api-name"
+      }
+    },
+    "lightning:inputField": {
+      "lwc": "lightning-input-field",
+      "attributes": {
+        "fieldName": "field-name",
+        "value": "value",
+        "variant": "variant"
+      }
+    },
+    "lightning:outputField": {
+      "lwc": "lightning-output-field",
+      "attributes": {
+        "fieldName": "field-name",
+        "variant": "variant"
+      }
+    },
+    "lightning:combobox": {
+      "lwc": "lightning-combobox",
+      "attributes": {
+        "label": "label",
+        "value": "value",
+        "options": "options",
+        "placeholder": "placeholder",
+        "onchange": "onchange"
+      }
+    },
+    "lightning:select": {
+      "lwc": "lightning-combobox",
+      "notes": "lightning:select maps to lightning-combobox in LWC"
+    },
+    "lightning:textarea": {
+      "lwc": "lightning-textarea",
+      "attributes": {
+        "label": "label",
+        "value": "value",
+        "placeholder": "placeholder",
+        "maxlength": "max-length",
+        "onchange": "onchange"
+      }
+    },
+    "lightning:checkboxGroup": {
+      "lwc": "lightning-checkbox-group",
+      "attributes": {
+        "label": "label",
+        "options": "options",
+        "value": "value",
+        "onchange": "onchange"
+      }
+    },
+    "lightning:radioGroup": {
+      "lwc": "lightning-radio-group",
+      "attributes": {
+        "label": "label",
+        "options": "options",
+        "value": "value",
+        "onchange": "onchange",
+        "type": "type"
+      }
+    },
+    "lightning:modal": {
+      "lwc": "lightning-modal",
+      "notes": "Modals in LWC extend LightningModal base class"
+    },
+    "lightning:tabset": {
+      "lwc": "lightning-tabset",
+      "attributes": {
+        "variant": "variant",
+        "activeTabValue": "active-tab-value"
+      }
+    },
+    "lightning:tab": {
+      "lwc": "lightning-tab",
+      "attributes": {
+        "label": "label",
+        "value": "value",
+        "iconName": "icon-name"
+      }
+    },
+    "lightning:accordion": {
+      "lwc": "lightning-accordion",
+      "attributes": {
+        "allowMultipleSectionsOpen": "allow-multiple-sections-open",
+        "activeSectionName": "active-section-name"
+      }
+    },
+    "lightning:accordionSection": {
+      "lwc": "lightning-accordion-section",
+      "attributes": {
+        "name": "name",
+        "label": "label"
+      }
+    },
+    "lightning:tile": {
+      "lwc": "lightning-tile",
+      "attributes": {
+        "label": "label",
+        "href": "href"
+      }
+    },
+    "lightning:badge": {
+      "lwc": "lightning-badge",
+      "attributes": {
+        "label": "label"
+      }
+    },
+    "lightning:progressBar": {
+      "lwc": "lightning-progress-bar",
+      "attributes": {
+        "value": "value",
+        "size": "size",
+        "variant": "variant"
+      }
+    },
+    "lightning:helptext": {
+      "lwc": "lightning-helptext",
+      "attributes": {
+        "content": "content",
+        "iconName": "icon-name"
+      }
+    },
+    "lightning:formattedText": {
+      "lwc": "lightning-formatted-text",
+      "attributes": {
+        "value": "value",
+        "linkify": "linkify"
+      }
+    },
+    "lightning:formattedNumber": {
+      "lwc": "lightning-formatted-number",
+      "attributes": {
+        "value": "value",
+        "formatStyle": "format-style",
+        "currencyCode": "currency-code"
+      }
+    },
+    "lightning:formattedDateTime": {
+      "lwc": "lightning-formatted-date-time",
+      "attributes": {
+        "value": "value",
+        "year": "year",
+        "month": "month",
+        "day": "day"
+      }
+    },
+    "force:recordData": {
+      "lwc": "@wire(getRecord)",
+      "notes": "Use getRecord wire adapter from lightning/uiRecordApi"
+    },
+    "force:navigateToSObject": {
+      "lwc": "NavigationMixin",
+      "notes": "Use NavigationMixin from lightning/navigation"
+    },
+    "ui:inputText": {
+      "lwc": "lightning-input",
+      "notes": "Legacy ui: namespace components should use lightning-input"
+    },
+    "ui:outputText": {
+      "lwc": "lightning-formatted-text",
+      "notes": "Legacy ui: namespace components should use lightning-formatted-*"
+    },
+    "ui:button": {
+      "lwc": "lightning-button",
+      "notes": "Legacy ui:button maps to lightning-button"
+    }
+  },
+  "expressions": {
+    "v.": {
+      "pattern": "\\{!v\\.(\\w+)\\}",
+      "replacement": "{$1}",
+      "notes": "View attribute reference becomes simple property reference"
+    },
+    "c.": {
+      "pattern": "\\{!c\\.(\\w+)\\}",
+      "replacement": "{$1}",
+      "notes": "Controller function reference becomes method reference"
+    },
+    "globalId": {
+      "pattern": "\\{!globalId\\}",
+      "replacement": "data-id",
+      "notes": "globalId should use data attributes or this.template.querySelector"
+    }
+  },
+  "attributes": {
+    "aura:id": {
+      "lwc": "data-id",
+      "alternativeApproach": "class or unique data attribute",
+      "notes": "Use this.template.querySelector('[data-id=\"name\"]') or refs"
+    },
+    "class": {
+      "lwc": "class",
+      "notes": "Class attribute works the same, but use computed getters for dynamic classes"
+    }
+  },
+  "serverActions": {
+    "pattern": "$A.enqueueAction",
+    "lwc": "@wire or imperative Apex",
+    "notes": "Server actions become wire adapters or imperative Apex calls"
+  }
+}
