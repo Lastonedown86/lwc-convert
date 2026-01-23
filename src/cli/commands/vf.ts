@@ -12,6 +12,7 @@ import { transformVfMarkup } from '../../transformers/vf-to-lwc/markup';
 import { generateVfScaffolding } from '../../generators/scaffolding';
 import { generateVfFullConversion } from '../../generators/full-conversion';
 import { resolveVfPath, resolveApexPath, formatSearchLocations } from '../../utils/path-resolver';
+import { writePreviewFile, openPreview } from '../../utils/preview-generator';
 
 export async function convertVf(
   inputPath: string,
@@ -195,6 +196,16 @@ export async function convertVf(
       'Verify Apex @AuraEnabled methods are configured',
       'Test in a scratch org before deploying',
     ]);
+
+    // Generate and open preview if requested
+    if (options.preview) {
+      logger.step(7, 'Generating UI preview...');
+      const previewPath = await writePreviewFile(outputDir, result.bundle, options.dryRun);
+      if (!options.dryRun) {
+        logger.success('Preview generated');
+        await openPreview(previewPath);
+      }
+    }
 
     // Open folder if requested
     if (options.open && !options.dryRun) {

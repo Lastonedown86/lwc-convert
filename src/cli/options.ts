@@ -8,6 +8,7 @@ export interface ConversionOptions {
   dryRun: boolean;
   verbose: boolean;
   open: boolean;
+  preview: boolean;
   controller?: string;
 }
 
@@ -34,6 +35,7 @@ Features:
   • Auto-generates Jest tests for converted components
   • Creates behavior spec documentation
   • Handles LMS, wire adapters, and Apex integration
+  • UI preview - see your converted component in a browser
 
 Conversion Modes:
   scaffolding (default)  LWC skeleton with guided TODO comments

@@ -25,6 +25,7 @@ program
   .option('--full', 'Run full automated conversion (default: scaffolding only)', false)
   .option('-o, --output <dir>', 'Output directory', DEFAULT_OUTPUT_DIR)
   .option('--open', 'Open output folder in file explorer after conversion', false)
+  .option('--preview', 'Generate and open HTML preview of converted component', false)
   .option('--dry-run', 'Preview conversion without writing files', false)
   .option('--verbose', 'Show detailed conversion logs', false)
   .action(async (bundlePath: string, options) => {
@@ -35,6 +36,7 @@ program
       dryRun: options.dryRun,
       verbose: options.verbose,
       open: options.open,
+      preview: options.preview,
     });
   });
 
@@ -46,6 +48,7 @@ program
   .option('-o, --output <dir>', 'Output directory', DEFAULT_OUTPUT_DIR)
   .option('--controller <path>', 'Include Apex controller file for analysis')
   .option('--open', 'Open output folder in file explorer after conversion', false)
+  .option('--preview', 'Generate and open HTML preview of converted component', false)
   .option('--dry-run', 'Preview conversion without writing files', false)
   .option('--verbose', 'Show detailed conversion logs', false)
   .action(async (pagePath: string, options) => {
@@ -57,6 +60,7 @@ program
       verbose: options.verbose,
       controller: options.controller,
       open: options.open,
+      preview: options.preview,
     });
   });
 
@@ -142,6 +146,10 @@ Examples:
   $ ${CLI_NAME} aura ./force-app/main/default/aura/MyComponent
   $ ${CLI_NAME} vf ./pages/MyPage.page --controller ./classes/MyController.cls
 
+  # Preview the converted UI in your browser
+  $ ${CLI_NAME} aura MyComponent --preview
+  $ ${CLI_NAME} vf ContactList --preview --full
+
   # Preview without writing files
   $ ${CLI_NAME} aura MyComponent --dry-run --verbose
 
@@ -159,6 +167,10 @@ Smart Path Resolution:
   - VF:   force-app/main/default/pages/, src/pages/, pages/
   - Apex: force-app/main/default/classes/, src/classes/, classes/
 
+UI Preview:
+  Use --preview to generate a standalone HTML file that shows how your
+  converted LWC will look using SLDS styling. Opens in your default browser.
+
 Session Management:
   Conversion data is stored in a temp folder during your session.
   This helps the tool learn from patterns and provide better suggestions.
@@ -175,7 +187,7 @@ if (process.argv.slice(2).length === 0) {
     if (answers) {
       // Execute the conversion based on user selections
       logger.setVerbose(false);
-      
+
       if (answers.conversionType === 'aura') {
         await convertAura(answers.componentPath, {
           output: answers.outputDir,
@@ -183,6 +195,7 @@ if (process.argv.slice(2).length === 0) {
           dryRun: false,
           verbose: false,
           open: answers.openFolder,
+          preview: answers.preview,
         });
       } else {
         await convertVf(answers.componentPath, {
@@ -192,6 +205,7 @@ if (process.argv.slice(2).length === 0) {
           verbose: false,
           controller: answers.controllerPath,
           open: answers.openFolder,
+          preview: answers.preview,
         });
       }
     }

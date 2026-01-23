@@ -15,6 +15,7 @@ import { generateAuraScaffolding } from '../../generators/scaffolding';
 import { generateAuraFullConversion } from '../../generators/full-conversion';
 import { resolveAuraPath, formatSearchLocations } from '../../utils/path-resolver';
 import { sessionStore } from '../../utils/session-store';
+import { writePreviewFile, openPreview } from '../../utils/preview-generator';
 
 export async function convertAura(
   inputPath: string,
@@ -213,6 +214,16 @@ export async function convertAura(
       'Verify behavior matches original component',
       `Session data stored in: ${sessionStore.getSessionDir()}`,
     ]);
+
+    // Generate and open preview if requested
+    if (options.preview) {
+      logger.step(8, 'Generating UI preview...');
+      const previewPath = await writePreviewFile(outputDir, result.bundle, options.dryRun);
+      if (!options.dryRun) {
+        logger.success('Preview generated');
+        await openPreview(previewPath);
+      }
+    }
 
     // Open folder if requested
     if (options.open && !options.dryRun) {
