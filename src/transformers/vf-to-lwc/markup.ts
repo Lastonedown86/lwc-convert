@@ -2,8 +2,9 @@
  * Transform Visualforce page markup to LWC HTML template
  */
 
-import { Element, Node, Text } from 'domhandler';
-import { ParsedVfPage, VfComponent, VfExpression } from '../../parsers/vf/page-parser';
+// Types available if needed: Element, Node, Text
+// import { Element, Node, Text } from 'domhandler';
+import { ParsedVfPage, VfComponent } from '../../parsers/vf/page-parser';
 import { logger } from '../../utils/logger';
 import * as vfMapping from '../../mappings/vf-to-lwc.json';
 
@@ -57,7 +58,12 @@ interface ComponentMapping {
   notes?: string;
 }
 
-const componentMappings = (vfMapping as any).components as Record<string, ComponentMapping>;
+// Create a normalized mapping with lowercase keys for case-insensitive lookup
+const rawMappings = (vfMapping as any).components as Record<string, ComponentMapping>;
+const componentMappings: Record<string, ComponentMapping> = {};
+for (const [key, value] of Object.entries(rawMappings)) {
+  componentMappings[key.toLowerCase()] = value;
+}
 
 /**
  * Convert VF formula to a JavaScript getter name
@@ -429,7 +435,6 @@ function getVfToLwcTag(vfTag: string): { lwcTag: string; mapping?: ComponentMapp
 
   // Handle apex: prefix generically
   if (lowerTag.startsWith('apex:')) {
-    const baseName = lowerTag.substring(5);
     warnings.push(`No specific mapping for ${vfTag} - using generic conversion`);
     return { lwcTag: `div`, warnings };
   }
@@ -556,6 +561,32 @@ function transformVfComponent(
       context.requiredImports.set('lightning/platformResourceLoader', new Set());
     }
     context.requiredImports.get('lightning/platformResourceLoader')!.add('loadScript');
+    return '';
+  }
+
+  // apex:outputText - convert to direct text interpolation
+  if (lowerName === 'apex:outputtext') {
+    const valueAttr = comp.attributes.value || '';
+    if (valueAttr) {
+      const { converted, warnings: exprWarnings } = convertExpression(valueAttr);
+      context.warnings.push(...exprWarnings);
+      // If the converted expression has curly braces, it's a data binding
+      // Otherwise it's static text
+      if (converted.startsWith('{') && converted.endsWith('}')) {
+        return `${indent}${converted}`;
+      }
+      // Handle escape attribute (HTML escaping) - LWC does this by default
+      if (comp.attributes.escape === 'false') {
+        context.warnings.push('apex:outputText with escape="false" detected - use lwc:dom="manual" with innerHTML for raw HTML');
+        return `${indent}<span lwc:dom="manual" data-output-text>${converted}</span>`;
+      }
+      return `${indent}${converted}`;
+    }
+    // No value attribute, process children as content
+    if (comp.textContent) {
+      const { converted } = convertExpression(comp.textContent);
+      return `${indent}${converted}`;
+    }
     return '';
   }
 

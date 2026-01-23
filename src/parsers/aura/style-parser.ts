@@ -2,7 +2,7 @@
  * Parser for Aura CSS style files
  */
 
-import postcss, { Root, Rule, Declaration, AtRule, Comment } from 'postcss';
+import postcss, { Root, Rule, Declaration, AtRule } from 'postcss';
 import { logger } from '../../utils/logger';
 
 export interface CssRule {
@@ -170,10 +170,16 @@ export function convertAuraStyleToLwc(parsed: ParsedAuraStyle): string {
 
   // Remove .THIS prefix from selectors
   // .THIS becomes :host
-  // .THIS .child becomes .child
+  // .THIS .child becomes .child (LWC styles are scoped by default)
   // .THIS.modifier becomes :host(.modifier)
+
+  // 1. Handle .THIS.modifier -> :host(.modifier)
+  css = css.replace(/\.THIS(\.[a-zA-Z0-9_-]+)/g, ':host($1)');
+
+  // 2. Handle .THIS .child -> .child (remove .THIS space)
   css = css.replace(/\.THIS\s+/g, '');
-  css = css.replace(/\.THIS\./g, ':host(.');
+
+  // 3. Handle standalone .THIS -> :host
   css = css.replace(/\.THIS(?=[^a-zA-Z0-9_-]|$)/g, ':host');
 
   // Note: Token conversion is complex and may need manual attention

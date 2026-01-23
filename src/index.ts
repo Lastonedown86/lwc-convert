@@ -9,6 +9,7 @@ import { CLI_NAME, CLI_DESCRIPTION, CLI_VERSION, DEFAULT_OUTPUT_DIR } from './cl
 import { convertAura } from './cli/commands/aura';
 import { convertVf } from './cli/commands/vf';
 import { logger } from './utils/logger';
+import { sessionStore } from './utils/session-store';
 
 const program = new Command();
 
@@ -59,6 +60,73 @@ program
     });
   });
 
+// Session management command
+program
+  .command('session')
+  .description('View session information and conversion history')
+  .option('--report', 'Generate full session report', false)
+  .option('--patterns', 'Show learned patterns from session', false)
+  .option('--cleanup', 'Clean up session data', false)
+  .action(async (options) => {
+    await sessionStore.init();
+    const summary = sessionStore.getSessionSummary();
+    
+    if (options.cleanup) {
+      await sessionStore.cleanup();
+      logger.success('Session data cleaned up');
+      return;
+    }
+    
+    if (options.report) {
+      const report = sessionStore.generateSessionReport();
+      console.log(report);
+      return;
+    }
+    
+    if (options.patterns) {
+      logger.header('Session Pattern Library');
+      const patterns = summary.patternLibrary;
+      if (patterns.length === 0) {
+        logger.info('No patterns learned yet. Run some conversions first!');
+      } else {
+        logger.info(`${patterns.length} patterns learned:`);
+        logger.blank();
+        for (const pattern of patterns.slice(0, 20)) {
+          console.log(`  [${pattern.type}] ${pattern.auraPattern} → ${pattern.lwcPattern}`);
+          console.log(`         Used: ${pattern.frequency}x, Success: ${(pattern.successRate * 100).toFixed(0)}%`);
+        }
+      }
+      return;
+    }
+    
+    // Default: show session summary
+    logger.banner();
+    logger.header('Current Session');
+    logger.info(`Session ID: ${summary.sessionId}`);
+    logger.info(`Started: ${summary.startedAt.toISOString()}`);
+    logger.info(`Conversions: ${summary.conversions}`);
+    logger.info(`Behaviors mapped: ${summary.totalBehaviors}`);
+    logger.info(`Patterns learned: ${summary.patternLibrary.length}`);
+    logger.info(`Session directory: ${sessionStore.getSessionDir()}`);
+    
+    if (summary.conversions > 0) {
+      logger.blank();
+      logger.subheader('Recent Conversions:');
+      const conversions = sessionStore.getConversions().slice(-5);
+      for (const conv of conversions) {
+        console.log(`  • ${conv.sourceName} → ${conv.targetName} (${conv.behaviorCount} behaviors)`);
+      }
+    }
+    
+    if (summary.commonWarnings.length > 0) {
+      logger.blank();
+      logger.subheader('Common Warnings:');
+      for (const { warning, count } of summary.commonWarnings.slice(0, 5)) {
+        console.log(`  [${count}x] ${warning.substring(0, 70)}...`);
+      }
+    }
+  });
+
 // Examples in help
 program.addHelpText('after', `
 Examples:
@@ -80,11 +148,21 @@ Examples:
   # Specify output directory
   $ ${CLI_NAME} vf ContactList -o ./src/lwc
 
+  # View session data and learned patterns
+  $ ${CLI_NAME} session
+  $ ${CLI_NAME} session --report
+  $ ${CLI_NAME} session --patterns
+
 Smart Path Resolution:
   The CLI searches common Salesforce project locations automatically:
   - Aura: force-app/main/default/aura/, src/aura/, aura/
   - VF:   force-app/main/default/pages/, src/pages/, pages/
   - Apex: force-app/main/default/classes/, src/classes/, classes/
+
+Session Management:
+  Conversion data is stored in a temp folder during your session.
+  This helps the tool learn from patterns and provide better suggestions.
+  Use 'session --report' to see full session statistics.
 `);
 
 // Parse and execute

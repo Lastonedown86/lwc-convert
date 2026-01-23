@@ -8,11 +8,13 @@ import { ParsedAuraHelper } from '../parsers/aura/helper-parser';
 import { ParsedAuraStyle, convertAuraStyleToLwc } from '../parsers/aura/style-parser';
 import { ParsedVfPage } from '../parsers/vf/page-parser';
 import { ParsedApexController } from '../parsers/vf/apex-parser';
-import { TransformedMarkup, LmsChannelConfig, RecordDataConfig } from '../transformers/aura-to-lwc/markup';
-import { TransformedController, LwcProperty, LwcMethod } from '../transformers/aura-to-lwc/controller';
+import { TransformedMarkup } from '../transformers/aura-to-lwc/markup';
+// Controller types available if needed
+// import { TransformedController, LwcProperty, LwcMethod } from '../transformers/aura-to-lwc/controller';
 import { TransformedVfMarkup } from '../transformers/vf-to-lwc/markup';
 import { generateDataAccessLayer } from '../transformers/vf-to-lwc/data-binding';
-import { generateAuraToLwcTests, generateBehaviorSpecDocument, GeneratedTest, BehaviorSpec } from './test-generator';
+import { generateAuraToLwcTests, generateBehaviorSpecDocument, GeneratedTest } from './test-generator';
+import { generateTestComparison, TestComparisonResult } from './test-comparison';
 import { LwcBundle, toPascalCase, toLwcName } from '../utils/file-io';
 import { logger } from '../utils/logger';
 
@@ -31,13 +33,15 @@ export interface ScaffoldingResult {
   tests?: GeneratedTest;
   /** Behavior spec document */
   behaviorSpec?: string;
+  /** Test comparison data for before/after verification */
+  testComparison?: TestComparisonResult;
 }
 
 /**
  * Generate LWC meta XML file content
  */
 function generateMetaXml(
-  componentName: string,
+  _componentName: string,
   options?: {
     apiVersion?: string;
     isExposed?: boolean;
@@ -123,7 +127,8 @@ function generateAuraScaffoldingJs(
       propCode += `    ${attr.name}`;
     }
 
-    if (attr.default !== undefined) {
+    // Only add default value if it exists and is not empty
+    if (attr.default !== undefined && attr.default !== '' && attr.default.trim() !== '') {
       propCode += ` = ${attr.default}`;
     }
     propCode += ';';
@@ -330,7 +335,6 @@ ${fieldGetters}`);
   }
 
   if (renderHandler) {
-    const funcName = renderHandler.action.replace('{!c.', '').replace('}', '');
     methodStubs.push(`    // TODO: Migrate logic from Aura render/afterRender handler
     // WARNING: renderedCallback fires on every render - use flag for one-time logic
     isRendered = false;
@@ -484,12 +488,9 @@ ${fieldGetters}`);
 /**
  * Convert Aura controller function to LWC method body
  */
-function convertAuraControllerToLwc(func: ParsedAuraController['functions'][0], markup: ParsedAuraMarkup): string {
+function convertAuraControllerToLwc(func: ParsedAuraController['functions'][0], _markup: ParsedAuraMarkup): string {
   // Parse the original function body and convert patterns
   let body = func.body || '';
-  
-  // Track if we need refreshApex
-  let needsRefreshApex = false;
   
   // Convert message.getParam('recordId') -> message.recordId
   body = body.replace(/(\w+)\.getParam\s*\(\s*['"](\w+)['"]\s*\)/g, '$1.$2');
@@ -503,7 +504,6 @@ function convertAuraControllerToLwc(func: ParsedAuraController['functions'][0], 
   // Convert component.find('auraId').reloadRecord() -> automatic refresh via reactive property
   // Since we're using @wire with '$contactId', changing contactId will automatically refresh
   if (body.includes('reloadRecord')) {
-    needsRefreshApex = true;
     body = body.replace(/(\w+)\s*=\s*component\.find\s*\(\s*['"][^'"]+['"]\s*\);?\s*\n?\s*\1\.reloadRecord\s*\(\s*\);?/g, 
       '// Wire will auto-refresh when contactId changes (reactive binding)');
     // Simpler pattern
@@ -791,8 +791,12 @@ export function generateAuraScaffolding(
   const tests = generateAuraToLwcTests(markup, transformedMarkup, controller);
   const behaviorSpec = generateBehaviorSpecDocument(markup.componentName, tests.behaviorSpecs);
 
+  // Generate before/after test comparison for behavior verification
+  const testComparison = generateTestComparison(markup, transformedMarkup, controller, helper);
+
   logger.debug(`Generated scaffolding for ${lwcName}`);
   logger.debug(`Generated ${tests.behaviorSpecs.length} behavior specs`);
+  logger.debug(`Generated ${testComparison.behaviorTests.length} behavior tests for comparison`);
 
   return {
     bundle: {
@@ -806,6 +810,7 @@ export function generateAuraScaffolding(
     warnings: allWarnings,
     tests,
     behaviorSpec,
+    testComparison,
   };
 }
 

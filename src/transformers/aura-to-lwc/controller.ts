@@ -7,7 +7,8 @@ import {
   AuraControllerFunction,
 } from '../../parsers/aura/controller-parser';
 import { ParsedAuraHelper, AuraHelperFunction } from '../../parsers/aura/helper-parser';
-import { ParsedAuraMarkup, AuraAttribute } from '../../parsers/aura/markup-parser';
+import { ParsedAuraMarkup } from '../../parsers/aura/markup-parser';
+import { DetectedGetter } from './markup';
 import { logger } from '../../utils/logger';
 import { toPascalCase } from '../../utils/file-io';
 
@@ -74,10 +75,11 @@ function convertType(auraType: string): string {
  */
 function convertFunctionBody(
   body: string,
-  func: AuraControllerFunction | AuraHelperFunction,
+  _func: AuraControllerFunction | AuraHelperFunction,
   allHelperFunctions?: Set<string>
-): { converted: string; warnings: string[] } {
+): { converted: string; warnings: string[]; usedLabels: string[] } {
   const warnings: string[] = [];
+  const usedLabels: string[] = [];
   let converted = body;
 
   // Replace component.get("v.x") with this.x
@@ -122,7 +124,7 @@ function convertFunctionBody(
   // Handle $A.get("e.c:EventName") - application events
   converted = converted.replace(
     /\$A\.get\s*\(\s*["']e\.(?:c:)?(\w+)["']\s*\)/g,
-    (match, eventName) => {
+    (_match, eventName) => {
       warnings.push(
         `Application event "${eventName}" found - convert to CustomEvent or pub/sub pattern`
       );
@@ -133,7 +135,7 @@ function convertFunctionBody(
   // Handle component.getEvent("eventName") - component events
   converted = converted.replace(
     /(?:component|cmp)\.getEvent\s*\(\s*["'](\w+)["']\s*\)/g,
-    (match, eventName) => {
+    (_match, eventName) => {
       return `new CustomEvent('${eventName.toLowerCase()}', { detail: {} })`;
     }
   );
@@ -144,7 +146,7 @@ function convertFunctionBody(
   // Handle event.setParams({...}).fire()
   converted = converted.replace(
     /(\w+)\.setParams\s*\(\s*(\{[^}]+\})\s*\)\.fire\s*\(\s*\)/g,
-    (match, varName, params) => {
+    (_match, varName, params) => {
       return `this.dispatchEvent(new CustomEvent('${varName.toLowerCase()}', { detail: ${params} }))`;
     }
   );
@@ -203,8 +205,11 @@ function convertFunctionBody(
   // Handle $A.get("$Label.namespace.label")
   converted = converted.replace(
     /\$A\.get\s*\(\s*["']\$Label\.(\w+)\.(\w+)["']\s*\)/g,
-    (match, namespace, label) => {
-      warnings.push(`Label reference found - import label ${namespace}.${label}`);
+    (_match, namespace, label) => {
+      const labelImport = `${namespace}.${label}`;
+      if (!usedLabels.includes(labelImport)) {
+        usedLabels.push(labelImport);
+      }
       return `this.label${label}`;
     }
   );
@@ -223,7 +228,7 @@ function convertFunctionBody(
     );
   }
 
-  return { converted, warnings };
+  return { converted, warnings, usedLabels };
 }
 
 /**
@@ -232,7 +237,8 @@ function convertFunctionBody(
 export function transformAuraController(
   markup: ParsedAuraMarkup,
   controller?: ParsedAuraController,
-  helper?: ParsedAuraHelper
+  helper?: ParsedAuraHelper,
+  detectedGetters?: DetectedGetter[]
 ): TransformedController {
   const warnings: string[] = [];
   const imports: string[] = ['LightningElement'];
@@ -240,6 +246,8 @@ export function transformAuraController(
   const methods: LwcMethod[] = [];
   const apexMethods: string[] = [];
   const wireAdapters: string[] = [];
+  const allUsedLabels = new Set<string>();
+  let usesNavigation = false;
 
   // Collect helper function names for reference
   const helperFunctions = new Set<string>();
@@ -301,12 +309,19 @@ export function transformAuraController(
       }
 
       // Convert function body
-      const { converted, warnings: bodyWarnings } = convertFunctionBody(
+      const { converted, warnings: bodyWarnings, usedLabels } = convertFunctionBody(
         body,
         func,
         helperFunctions
       );
       warnings.push(...bodyWarnings);
+      if (usedLabels) {
+        usedLabels.forEach(l => allUsedLabels.add(l));
+      }
+
+      if (converted.includes('NavigationMixin') || bodyWarnings.some(w => w.includes('NavigationMixin'))) {
+        usesNavigation = true;
+      }
 
       // Track server calls as apex methods
       for (const serverCall of func.serverCalls) {
@@ -333,12 +348,19 @@ export function transformAuraController(
         continue;
       }
 
-      const { converted, warnings: bodyWarnings } = convertFunctionBody(
+      const { converted, warnings: bodyWarnings, usedLabels } = convertFunctionBody(
         func.body,
         func,
         helperFunctions
       );
       warnings.push(...bodyWarnings);
+      if (usedLabels) {
+        usedLabels.forEach(l => allUsedLabels.add(l));
+      }
+
+      if (converted.includes('NavigationMixin') || bodyWarnings.some(w => w.includes('NavigationMixin'))) {
+        usesNavigation = true;
+      }
 
       // Track server calls
       for (const serverCall of func.serverCalls) {
@@ -392,7 +414,17 @@ export function transformAuraController(
   let js = '';
 
   // Add imports
-  js += `import { ${imports.join(', ')} } from 'lwc';\n`;
+  if (usesNavigation) {
+    imports.push('NavigationMixin');
+    // NavigationMixin comes from lightning/navigation, not lwc
+    // We'll handle it separately in the import string construction
+  }
+
+  js += `import { ${imports.filter(i => i !== 'NavigationMixin').join(', ')} } from 'lwc';\n`;
+
+  if (usesNavigation) {
+    js += `import { NavigationMixin } from 'lightning/navigation';\n`;
+  }
 
   // Add apex imports as TODOs
   if (apexMethods.length > 0) {
@@ -410,8 +442,21 @@ export function transformAuraController(
     }
   }
 
+  // Add label imports
+  if (allUsedLabels.size > 0) {
+    js += '\n// Label imports\n';
+    for (const label of allUsedLabels) {
+      const [namespace, labelName] = label.split('.');
+      js += `import label${labelName} from '@salesforce/label/${namespace}.${labelName}';\n`;
+    }
+  }
+
   js += '\n';
-  js += `export default class ${className} extends LightningElement {\n`;
+  if (usesNavigation) {
+    js += `export default class ${className} extends NavigationMixin(LightningElement) {\n`;
+  } else {
+    js += `export default class ${className} extends LightningElement {\n`;
+  }
 
   // Add properties
   for (const prop of properties) {
@@ -424,7 +469,8 @@ export function transformAuraController(
       js += '    ';
     }
     js += prop.name;
-    if (prop.defaultValue !== undefined) {
+    // Only add default value if it exists and is not empty
+    if (prop.defaultValue !== undefined && prop.defaultValue !== '' && prop.defaultValue.trim() !== '') {
       js += ` = ${prop.defaultValue}`;
     }
     js += ';\n';
@@ -432,6 +478,25 @@ export function transformAuraController(
 
   if (properties.length > 0) {
     js += '\n';
+  }
+
+  // Add getters for complex expressions
+  if (detectedGetters && detectedGetters.length > 0) {
+    js += '    // Getters for complex expressions detected in markup\n';
+    for (const getter of detectedGetters) {
+      js += `    get ${getter.name}() {\n`;
+      // Convert expression syntax to JS (basic conversion)
+      let jsExpr = getter.expression;
+      // Replace v.prop with this.prop
+      jsExpr = jsExpr.replace(/v\.(\w+)/g, 'this.$1');
+      // Replace c.method with this.method
+      jsExpr = jsExpr.replace(/c\.(\w+)/g, 'this.$1');
+      // Replace !v.prop with !this.prop
+      jsExpr = jsExpr.replace(/!v\.(\w+)/g, '!this.$1');
+
+      js += `        return ${jsExpr};\n`;
+      js += `    }\n\n`;
+    }
   }
 
   // Add methods

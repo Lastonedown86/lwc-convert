@@ -3,12 +3,18 @@
  */
 
 import { VfComponent } from '../../parsers/vf/page-parser';
-import { logger } from '../../utils/logger';
+// import { logger } from '../../utils/logger';
+import {
+  getComponentConfidence,
+  getConfidenceLevel,
+} from '../../utils/confidence-scorer';
 
 export interface LwcComponentSuggestion {
   vfComponent: string;
   lwcComponent: string;
   confidence: 'high' | 'medium' | 'low';
+  confidenceScore: number; // 0-100 numeric score
+  confidenceFactors: string[]; // Reasons for the score
   notes: string;
   codeExample?: string;
 }
@@ -240,25 +246,34 @@ export function suggestLwcComponents(vfComponents: VfComponent[]): LwcComponentS
 
     if (formComponentMappings[compType]) {
       const mapping = formComponentMappings[compType];
+      const { score, reason } = getComponentConfidence(compType);
       suggestions.push({
         vfComponent: comp.name,
         lwcComponent: mapping.lwc,
-        confidence: 'high',
+        confidence: getConfidenceLevel(score),
+        confidenceScore: score,
+        confidenceFactors: [reason],
         notes: `Direct mapping available`,
         codeExample: mapping.codeGen(comp.attributes).lwcCode,
       });
     } else if (compType.startsWith('apex:pageblock')) {
+      const { score, reason } = getComponentConfidence(compType);
       suggestions.push({
         vfComponent: comp.name,
         lwcComponent: 'lightning-card',
-        confidence: 'medium',
+        confidence: getConfidenceLevel(score),
+        confidenceScore: score,
+        confidenceFactors: [reason],
         notes: 'Page blocks can be replaced with lightning-card for similar visual grouping',
       });
     } else if (compType === 'apex:detail') {
+      const { score, reason } = getComponentConfidence(compType);
       suggestions.push({
         vfComponent: comp.name,
         lwcComponent: 'lightning-record-form',
-        confidence: 'high',
+        confidence: getConfidenceLevel(score),
+        confidenceScore: score,
+        confidenceFactors: [reason],
         notes: 'Use lightning-record-form with mode="view" or "edit"',
         codeExample: `<lightning-record-form
     record-id={recordId}
@@ -268,10 +283,13 @@ export function suggestLwcComponents(vfComponents: VfComponent[]): LwcComponentS
 </lightning-record-form>`,
       });
     } else if (compType === 'apex:relatedlist') {
+      const { score, reason } = getComponentConfidence(compType);
       suggestions.push({
         vfComponent: comp.name,
         lwcComponent: 'lightning-related-list-view',
-        confidence: 'high',
+        confidence: getConfidenceLevel(score),
+        confidenceScore: score,
+        confidenceFactors: [reason],
         notes: 'Direct LWC equivalent available',
         codeExample: `<lightning-related-list-view
     related-list-id="Contacts"
@@ -279,17 +297,23 @@ export function suggestLwcComponents(vfComponents: VfComponent[]): LwcComponentS
 </lightning-related-list-view>`,
       });
     } else if (compType === 'apex:iframe') {
+      const { score, reason } = getComponentConfidence(compType);
       suggestions.push({
         vfComponent: comp.name,
         lwcComponent: 'iframe',
-        confidence: 'medium',
+        confidence: getConfidenceLevel(score),
+        confidenceScore: score,
+        confidenceFactors: [reason],
         notes: 'Standard iframe works in LWC, but check CSP restrictions',
       });
     } else if (compType.startsWith('apex:')) {
+      const { score, reason } = getComponentConfidence(compType);
       suggestions.push({
         vfComponent: comp.name,
         lwcComponent: 'custom-implementation',
-        confidence: 'low',
+        confidence: getConfidenceLevel(score),
+        confidenceScore: score,
+        confidenceFactors: [reason],
         notes: 'No direct mapping - requires custom implementation',
       });
     }
@@ -314,9 +338,9 @@ export function generateDataTableColumns(
   for (const child of tableComponent.children) {
     if (child.name.toLowerCase() === 'apex:column') {
       const label = child.attributes.headerlabel ||
-                    child.attributes.headervalue ||
-                    child.attributes.value?.replace(/\{!|\}/g, '').split('.').pop() ||
-                    'Column';
+        child.attributes.headervalue ||
+        child.attributes.value?.replace(/\{!|\}/g, '').split('.').pop() ||
+        'Column';
 
       const value = child.attributes.value || '';
       const varName = tableComponent.attributes.var || 'item';
@@ -357,7 +381,7 @@ ${columns.map((col) => `    { label: '${col.label}', fieldName: '${col.fieldName
  */
 export function generateFormHandler(
   formComponent: VfComponent,
-  apexAction?: string
+  _apexAction?: string
 ): string {
   const fields = formComponent.children.filter(
     (c) =>

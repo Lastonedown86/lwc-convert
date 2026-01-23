@@ -87,7 +87,7 @@ function parseAttributeAccess(path: NodePath<t.CallExpression>): AttributeAccess
 /**
  * Parse server action calls ($A.enqueueAction patterns)
  */
-function parseServerCall(path: NodePath<t.CallExpression>, source: string): AuraServerCall | null {
+function parseServerCall(path: NodePath<t.CallExpression>, _source: string): AuraServerCall | null {
   const callee = path.node.callee;
 
   // Look for $A.enqueueAction(action) pattern

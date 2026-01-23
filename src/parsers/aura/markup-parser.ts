@@ -143,7 +143,7 @@ export function parseAuraMarkup(markup: string, componentName: string): ParsedAu
   };
 
   // Parse HTML/XML
-  const handler = new DomHandler((error, dom) => {
+  const handler = new DomHandler((error, _dom) => {
     if (error) {
       throw new Error(`Failed to parse Aura markup: ${error.message}`);
     }

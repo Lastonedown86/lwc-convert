@@ -340,7 +340,7 @@ export function parseVfPage(markup: string, pageName: string): ParsedVfPage {
   };
 
   // Parse HTML/XML
-  const handler = new DomHandler((error, dom) => {
+  const handler = new DomHandler((error, _dom) => {
     if (error) {
       throw new Error(`Failed to parse VF markup: ${error.message}`);
     }

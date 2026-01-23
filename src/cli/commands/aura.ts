@@ -14,6 +14,7 @@ import { transformAuraMarkup } from '../../transformers/aura-to-lwc/markup';
 import { generateAuraScaffolding } from '../../generators/scaffolding';
 import { generateAuraFullConversion } from '../../generators/full-conversion';
 import { resolveAuraPath, formatSearchLocations } from '../../utils/path-resolver';
+import { sessionStore } from '../../utils/session-store';
 
 export async function convertAura(
   inputPath: string,
@@ -140,19 +141,55 @@ export async function convertAura(
       await writeFile(specFilePath, result.behaviorSpec, options.dryRun);
     }
 
+    // Write test comparison files (before/after tests)
+    if (result.testComparison) {
+      const { writeFile } = await import('../../utils/file-io');
+      const testDir = path.join(outputDir, result.bundle.name, '__tests__');
+      
+      // Write "before" test documentation (Aura behaviors)
+      const beforeTestPath = path.join(testDir, `${result.bundle.name}.before.spec.js`);
+      await writeFile(beforeTestPath, result.testComparison.beforeTestFile, options.dryRun);
+      
+      // Write "after" test file (LWC verification)
+      const afterTestPath = path.join(testDir, `${result.bundle.name}.after.test.js`);
+      await writeFile(afterTestPath, result.testComparison.afterTestFile, options.dryRun);
+      
+      // Write comparison report
+      const comparisonReportPath = path.join(outputDir, result.bundle.name, `${result.bundle.name}-test-comparison.md`);
+      await writeFile(comparisonReportPath, result.testComparison.comparisonReport, options.dryRun);
+    }
+
     logger.divider();
     logger.success('Conversion complete!');
+
+    // Store conversion in session for learning
+    if (result.testComparison) {
+      const conversionRecord = await sessionStore.storeConversion(
+        'aura',
+        bundle.name,
+        result.bundle.name,
+        bundlePath,
+        path.join(outputDir, result.bundle.name),
+        result.testComparison,
+        result.warnings
+      );
+      logger.debug(`Session stored: ${conversionRecord.id}`);
+    }
 
     // Calculate file count
     let totalFiles = writtenFiles.length + 1; // +1 for notes
     if (result.tests) totalFiles++;
     if (result.behaviorSpec) totalFiles++;
+    if (result.testComparison) totalFiles += 3; // before spec, after test, comparison report
 
     // Summary box with key info
+    const sessionSummary = sessionStore.getSessionSummary();
     logger.summaryBox('Conversion Summary', [
       { label: 'Component', value: `${bundle.name} → ${result.bundle.name}`, type: 'success' },
       { label: 'Files created', value: `${totalFiles}`, type: 'info' },
+      { label: 'Behaviors mapped', value: `${result.testComparison?.behaviorTests.length || 0}`, type: 'info' },
       { label: 'Warnings', value: `${result.warnings.length}`, type: result.warnings.length > 0 ? 'warn' : 'success' },
+      { label: 'Session conversions', value: `${sessionSummary.conversions}`, type: 'info' },
       { label: 'Output', value: path.join(outputDir, result.bundle.name), type: 'info' },
     ]);
 
@@ -174,6 +211,7 @@ export async function convertAura(
       'Check conversion-notes.md for manual action items',
       'Run Jest tests: npm test -- --findRelatedTests',
       'Verify behavior matches original component',
+      `Session data stored in: ${sessionStore.getSessionDir()}`,
     ]);
 
     // Open folder if requested

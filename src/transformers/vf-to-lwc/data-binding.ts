@@ -4,7 +4,7 @@
 
 import { ParsedVfPage, VfExpression, VfActionFunction } from '../../parsers/vf/page-parser';
 import { ParsedApexController, ApexProperty, ApexMethod } from '../../parsers/vf/apex-parser';
-import { logger } from '../../utils/logger';
+// import { logger } from '../../utils/logger';
 
 export interface DataBindingTransformation {
   vfExpression: string;
@@ -525,7 +525,7 @@ export function generateDataAccessLayer(
       // Find matching LMS binding for this MessageChannel
       let matchingBinding: LmsSubscriptionBinding | undefined;
       if (expr.reference.includes('$MessageChannel')) {
-        matchingBinding = lmsBindings.find(b => {
+        matchingBinding = lmsBindings.find(_b => {
           // The binding channelName might be a variable reference or the actual channel name
           return lmsBindings.length > 0; // Use first binding if any exist
         });
@@ -549,7 +549,6 @@ export function generateDataAccessLayer(
   const remoteObjects = findRemoteObjects(vfPage.components);
   if (remoteObjects.length > 0) {
     for (const ro of remoteObjects) {
-      const fields = ro.fields.split(',').map(f => f.trim());
       const objectNameLower = ro.objectName.toLowerCase();
 
       // Generate wire adapter scaffolding

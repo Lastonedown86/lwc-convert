@@ -10,7 +10,7 @@ import * as os from 'os';
  * Works on Windows, macOS, and Linux.
  */
 export function openFolder(folderPath: string): Promise<void> {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve, _reject) => {
     const platform = os.platform();
     let command: string;
 

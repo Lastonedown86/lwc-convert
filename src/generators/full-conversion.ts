@@ -8,27 +8,38 @@ import { ParsedAuraHelper } from '../parsers/aura/helper-parser';
 import { ParsedAuraStyle, convertAuraStyleToLwc } from '../parsers/aura/style-parser';
 import { ParsedVfPage } from '../parsers/vf/page-parser';
 import { ParsedApexController } from '../parsers/vf/apex-parser';
-import { transformAuraMarkup, TransformedMarkup } from '../transformers/aura-to-lwc/markup';
-import {
-  transformAuraController,
-  TransformedController,
-} from '../transformers/aura-to-lwc/controller';
+import { transformAuraMarkup } from '../transformers/aura-to-lwc/markup';
+import { transformAuraController } from '../transformers/aura-to-lwc/controller';
 import { transformAuraEvent, transformEventHandler } from '../transformers/aura-to-lwc/events';
-import { transformVfMarkup, TransformedVfMarkup } from '../transformers/vf-to-lwc/markup';
+import { transformVfMarkup } from '../transformers/vf-to-lwc/markup';
 import { generateDataAccessLayer } from '../transformers/vf-to-lwc/data-binding';
 import { generateAuraToLwcTests, generateBehaviorSpecDocument, GeneratedTest } from './test-generator';
 import { LwcBundle, toPascalCase, toLwcName } from '../utils/file-io';
 import { logger } from '../utils/logger';
+import {
+  ConversionConfidence,
+  ConfidenceFactor,
+  aggregateConfidence,
+  calculateComponentsConfidence,
+  calculateExpressionsConfidence,
+  calculateDataBindingConfidence,
+  calculateApexConfidence,
+  formatConfidenceScore,
+} from '../utils/confidence-scorer';
 
 export interface FullConversionResult {
   bundle: LwcBundle;
   notes: string[];
   warnings: string[];
   reviewItems: ReviewItem[];
+  /** Conversion confidence metrics */
+  confidence: ConversionConfidence;
   /** Generated Jest tests for the converted component */
   tests?: GeneratedTest;
   /** Behavior spec document mapping Aura patterns to LWC equivalents */
   behaviorSpec?: string;
+  /** Test comparison data for before/after verification */
+  testComparison?: import('./test-comparison').TestComparisonResult;
 }
 
 export interface ReviewItem {
@@ -42,7 +53,7 @@ export interface ReviewItem {
  * Generate LWC meta XML file content
  */
 function generateMetaXml(
-  componentName: string,
+  _componentName: string,
   options?: {
     apiVersion?: string;
     isExposed?: boolean;
@@ -159,7 +170,12 @@ export function generateAuraFullConversion(
   }
 
   // Transform controller and helper
-  const transformedController = transformAuraController(markup, controller, helper);
+  const transformedController = transformAuraController(
+    markup,
+    controller,
+    helper,
+    transformedMarkup.detectedGetters
+  );
   for (const warning of transformedController.warnings) {
     reviewItems.push({
       type: 'review',
@@ -263,6 +279,19 @@ export function generateAuraFullConversion(
   logger.debug(`Full conversion completed for ${lwcName}`);
   logger.debug(`${reviewItems.length} items need review`);
 
+  // Aura conversions are generally high confidence - create default
+  const confidence: ConversionConfidence = {
+    overall: 85,
+    level: 'high',
+    factors: [],
+    summary: 'Aura to LWC conversion is well-supported with direct mappings.',
+    breakdown: { components: 85, dataBinding: 85, expressions: 85, apex: 85 },
+  };
+
+  // Generate tests and behavior spec
+  const tests = generateAuraToLwcTests(markup, transformedMarkup, controller);
+  const behaviorSpec = generateBehaviorSpecDocument(markup.componentName, tests.behaviorSpecs);
+
   return {
     bundle: {
       name: lwcName,
@@ -274,6 +303,9 @@ export function generateAuraFullConversion(
     notes,
     warnings: reviewItems.filter((r) => r.type === 'warning').map((r) => r.message),
     reviewItems,
+    confidence,
+    tests,
+    behaviorSpec,
   };
 }
 
@@ -307,6 +339,62 @@ export function generateVfFullConversion(
       message: warning,
     });
   }
+
+  // Calculate confidence factors
+  const confidenceFactors: ConfidenceFactor[] = [];
+
+  // Component confidence
+  const componentNames = vfPage.components.map((c) => c.name);
+  confidenceFactors.push(...calculateComponentsConfidence(componentNames));
+
+  // Expression confidence
+  const expressions = vfPage.expressions.map((e) => e.original);
+  confidenceFactors.push(...calculateExpressionsConfidence(expressions));
+
+  // Data binding confidence
+  confidenceFactors.push(
+    ...calculateDataBindingConfidence({
+      hasWireAdapters: dataAccess.wireDeclarations.length > 0,
+      hasImperativeApex: dataAccess.methods.length > 0,
+      hasRemoteActions: vfPage.remoteActions.length > 0,
+      hasActionFunctions: vfPage.actionFunctions.length > 0,
+      actionFunctionsWithParams: vfPage.actionFunctions.filter(
+        (af) => af.rerender || af.oncomplete
+      ).length,
+      hasRemoteObjects: vfPage.components.some(
+        (c) => c.name.toLowerCase() === 'apex:remoteobjects'
+      ),
+    })
+  );
+
+  // Apex controller confidence
+  if (apexController) {
+    confidenceFactors.push(
+      ...calculateApexConfidence({
+        totalMethods: apexController.methods.length,
+        auraEnabledMethods: apexController.methods.filter((m) => m.isAuraEnabled).length,
+        remoteActionMethods: apexController.methods.filter((m) => m.isRemoteAction).length,
+        hasSoqlQueries: apexController.soqlQueries.length > 0,
+        hasDmlOperations: apexController.dmlOperations.length > 0,
+        controllerAvailable: true,
+      })
+    );
+  } else if (vfPage.pageAttributes.controller) {
+    // Controller referenced but not provided
+    confidenceFactors.push(
+      ...calculateApexConfidence({
+        totalMethods: 0,
+        auraEnabledMethods: 0,
+        remoteActionMethods: 0,
+        hasSoqlQueries: false,
+        hasDmlOperations: false,
+        controllerAvailable: false,
+      })
+    );
+  }
+
+  // Aggregate confidence
+  const confidence = aggregateConfidence(confidenceFactors);
 
   // Build complete JS
   const className = toPascalCase(vfPage.pageName);
@@ -576,6 +664,7 @@ export function generateVfFullConversion(
 
   logger.debug(`Full VF conversion completed for ${lwcName}`);
   logger.debug(`${reviewItems.length} items need review`);
+  logger.debug(`Confidence: ${formatConfidenceScore(confidence)}`);
 
   return {
     bundle: {
@@ -587,5 +676,6 @@ export function generateVfFullConversion(
     notes,
     warnings: reviewItems.filter((r) => r.type === 'warning').map((r) => r.message),
     reviewItems,
+    confidence,
   };
 }

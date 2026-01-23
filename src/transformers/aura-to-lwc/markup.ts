@@ -3,7 +3,7 @@
  */
 
 import { Element, Node, Text } from 'domhandler';
-import { ParsedAuraMarkup, AuraAttribute } from '../../parsers/aura/markup-parser';
+import { ParsedAuraMarkup } from '../../parsers/aura/markup-parser';
 import { logger } from '../../utils/logger';
 import * as auraMapping from '../../mappings/aura-to-lwc.json';
 
@@ -18,6 +18,13 @@ export interface TransformedMarkup {
   recordDataServices: RecordDataConfig[];
   /** aura:set facets for slot conversion */
   facetContent: FacetContent[];
+  /** Complex expressions converted to getters */
+  detectedGetters: DetectedGetter[];
+}
+
+export interface DetectedGetter {
+  name: string;
+  expression: string;
 }
 
 /** LMS channel configuration from lightning:messageChannel */
@@ -61,24 +68,71 @@ const componentMappings = (auraMapping as any).components as Record<string, Comp
  * {!v.name} -> {name}
  * {!c.handleClick} -> {handleClick}
  * {!v.contact.Picture__c} -> {picture} (converted to use getter)
+ * {!v.isActive ? 'Active' : 'Inactive'} -> {displayStatus} (converted to getter)
  */
-function convertExpression(expr: string, recordDataFields?: Map<string, string[]>): string {
+function convertExpression(
+  expr: string,
+  context?: { detectedGetters: DetectedGetter[] }
+): string {
   // Remove {! and }
   let result = expr;
+
+  // Extract inner expression for complexity check (remove {! and })
+  const innerExpr = expr.startsWith('{!') && expr.endsWith('}')
+    ? expr.substring(2, expr.length - 1).trim()
+    : expr;
+
+  // Check for complex expressions (ternary, logical operators, math)
+  // Simple expressions like v.prop, c.method, v.obj.prop should NOT be treated as complex
+  // Check for operators that indicate complex logic (but not the leading ! in {!...})
+  const isSimplePropertyAccess = /^[vc]\.\w+(\.\w+)*$/.test(innerExpr) || 
+    /^\$Label\.\w+\.\w+$/.test(innerExpr) ||
+    innerExpr === 'globalId';
+  
+  const hasComplexOperators =
+    innerExpr.includes('?') ||
+    innerExpr.includes('&&') ||
+    innerExpr.includes('||') ||
+    // Check for negation operator (!) but not at start of simple property (e.g., !v.isTrue)
+    /[^{]!/.test(innerExpr) ||
+    // Check for math but exclude property paths like v.obj-name
+    /\s[\+\-\*\/]\s/.test(innerExpr) ||
+    innerExpr.includes('==') ||
+    innerExpr.includes('!=') ||
+    innerExpr.includes('>=') ||
+    innerExpr.includes('<=') ||
+    /[^=!<>]>[^=]/.test(innerExpr) ||
+    /[^=]<[^=]/.test(innerExpr);
+
+  const isComplex = !isSimplePropertyAccess && hasComplexOperators;
+
+  // If complex and we have context to store it, convert to getter
+  if (isComplex && context && expr.startsWith('{!') && expr.endsWith('}')) {
+    // Generate a getter name based on the expression content
+    // e.g. v.isActive ? 'Active' : 'Inactive' -> getComputedValue1
+    const getterName = `computedValue${context.detectedGetters.length + 1}`;
+
+    context.detectedGetters.push({
+      name: getterName,
+      expression: innerExpr
+    });
+
+    return `{${getterName}}`;
+  }
 
   // {!v.propertyName} -> {propertyName}
   result = result.replace(/\{!v\.(\w+)\}/g, '{$1}');
 
   // {!v.contact.FieldName} -> {fieldName} getter (for wire data from force:recordData)
   // This handles patterns like {!v.contact.Picture__c}
-  result = result.replace(/\{!v\.(\w+)\.(\w+)__c\}/g, (match, targetObj, fieldName) => {
+  result = result.replace(/\{!v\.(\w+)\.(\w+)__c\}/g, (_match, _targetObj, fieldName) => {
     // Convert Picture__c to picture (getter name)
     const getterName = fieldName.charAt(0).toLowerCase() + fieldName.slice(1);
     return `{${getterName}}`;
   });
-  
+
   // Also handle standard fields like {!v.contact.Name}
-  result = result.replace(/\{!v\.(\w+)\.(\w+)\}/g, (match, targetObj, fieldName) => {
+  result = result.replace(/\{!v\.(\w+)\.(\w+)\}/g, (_match, _targetObj, fieldName) => {
     // Convert Name to name (getter name) - standard fields
     const getterName = fieldName.charAt(0).toLowerCase() + fieldName.slice(1);
     return `{${getterName}}`;
@@ -168,12 +222,13 @@ function transformNode(
     lmsChannels: LmsChannelConfig[];
     recordDataServices: RecordDataConfig[];
     facetContent: FacetContent[];
+    detectedGetters: DetectedGetter[];
     parentTag?: string;
   }
 ): string {
   if (node.type === 'text') {
     const text = (node as Text).data;
-    const converted = convertExpression(text);
+    const converted = convertExpression(text, context);
     if (converted.trim()) {
       return converted;
     }
@@ -193,14 +248,14 @@ function transformNode(
     const auraId = element.attribs['aura:id'] || '';
     const onMessage = element.attribs.onmessage || element.attribs.onMessage || '';
     const scope = element.attribs.scope || '';
-    
+
     // Extract handler name from {!c.handleMessage}
     let handlerName = '';
     const handlerMatch = onMessage.match(/\{!c\.(\w+)\}/);
     if (handlerMatch) {
       handlerName = handlerMatch[1];
     }
-    
+
     context.lmsChannels.push({
       channelName: channelType,
       auraId: auraId,
@@ -208,14 +263,14 @@ function transformNode(
       scope: scope,
       isPublisherOnly: !handlerName, // No onMessage handler means publisher-only
     });
-    
+
     const lmsPattern = handlerName ? 'subscriber' : 'publisher-only';
     context.warnings.push(`lightning:messageChannel detected (${lmsPattern}) - LMS code will be generated in JavaScript`);
-    
+
     // Don't output any markup - LMS is handled in JS
     return '';
   }
-  
+
   // Handle force:recordData - extract config, don't output markup
   if (tagName === 'force:recorddata' || tagName === 'force:recordData') {
     const auraId = element.attribs['aura:id'] || '';
@@ -225,7 +280,7 @@ function transformNode(
     const targetRecord = element.attribs.targetrecord || element.attribs.targetRecord || '';
     const targetError = element.attribs.targeterror || element.attribs.targetError || '';
     const mode = element.attribs.mode || 'VIEW';
-    
+
     // Parse fields from string like "['Name', 'Title', 'Phone']"
     let fields: string[] = [];
     const fieldsMatch = fieldsAttr.match(/\[([^\]]+)\]/);
@@ -235,33 +290,33 @@ function transformNode(
         .map(f => f.trim().replace(/['"]/g, ''))
         .filter(f => f);
     }
-    
+
     // Convert recordId binding from {!v.contactId} to contactId
     let recordIdBinding = recordId;
     const bindingMatch = recordId.match(/\{!v\.(\w+)\}/);
     if (bindingMatch) {
       recordIdBinding = bindingMatch[1];
     }
-    
+
     // Convert targetFields from {!v.contact} to contact
     let targetFieldsBinding = targetFields;
     const targetMatch = targetFields.match(/\{!v\.(\w+)\}/);
     if (targetMatch) {
       targetFieldsBinding = targetMatch[1];
     }
-    
+
     context.recordDataServices.push({
       auraId: auraId,
       recordIdBinding: recordIdBinding,
       fields: fields,
       targetFields: targetFieldsBinding,
-      targetRecord: targetRecord ? convertExpression(targetRecord).replace(/[{}]/g, '') : undefined,
-      targetError: targetError ? convertExpression(targetError).replace(/[{}]/g, '') : undefined,
+      targetRecord: targetRecord ? convertExpression(targetRecord, context).replace(/[{}]/g, '') : undefined,
+      targetError: targetError ? convertExpression(targetError, context).replace(/[{}]/g, '') : undefined,
       mode: mode,
     });
-    
+
     context.warnings.push(`force:recordData detected - @wire(getRecord) will be generated in JavaScript`);
-    
+
     // Don't output any markup - wire adapter is in JS
     return '';
   }
@@ -273,15 +328,48 @@ function transformNode(
 
     let directive = '';
     if (isTrue) {
-      directive = `if:true=${convertExpression(isTrue)}`;
-      context.usedDirectives.push('if:true');
+      directive = `lwc:if={${convertExpression(isTrue, context).replace(/^{|}$/g, '')}}`;
+      context.usedDirectives.push('lwc:if');
     } else if (isFalse) {
-      directive = `if:false=${convertExpression(isFalse)}`;
-      context.usedDirectives.push('if:false');
+      // isFalse is tricky because lwc:else doesn't take an expression
+      // We'll treat it as lwc:if with negated expression
+      const expr = convertExpression(isFalse, context).replace(/^{|}$/g, '');
+      directive = `lwc:if={!${expr}}`;
+      context.usedDirectives.push('lwc:if');
     }
 
-    const childContent = transformChildren(element.children || [], indent + '    ', context);
-    return `${indent}<template ${directive}>\n${childContent}${indent}</template>`;
+    // Separate children into main if-block content and else block content
+    const children = element.children || [];
+    const mainBlockChildren: Node[] = [];
+    let elseBlockContent = '';
+
+    for (const child of children) {
+      if (child.type === 'tag') {
+        const childElement = child as Element;
+        if (childElement.name === 'aura:set') {
+          const attrName = childElement.attribs.attribute || '';
+          if (attrName === 'else') {
+            // This is the else block content - transform it separately
+            const elseChildren = childElement.children || [];
+            elseBlockContent = transformChildren(elseChildren, indent + '    ', context);
+            context.usedDirectives.push('lwc:else');
+            continue;
+          }
+        }
+      }
+      mainBlockChildren.push(child);
+    }
+
+    const mainContent = transformChildren(mainBlockChildren, indent + '    ', context);
+
+    let result = `${indent}<template ${directive}>\n${mainContent}${indent}</template>`;
+
+    // Add else block if present
+    if (elseBlockContent) {
+      result += `\n${indent}<template lwc:else>\n${elseBlockContent}${indent}</template>`;
+    }
+
+    return result;
   }
 
   if (tagName === 'aura:iteration') {
@@ -291,17 +379,15 @@ function transformNode(
 
     context.usedDirectives.push('for:each');
 
-    let directives = `for:each=${convertExpression(items)} for:item="${varName}"`;
+    let directives = `for:each=${convertExpression(items, context)} for:item="${varName}"`;
     if (indexVar) {
       directives += ` for:index="${indexVar}"`;
     }
 
-    // LWC requires key attribute on first child
-    context.warnings.push(
-      `Iteration converted - ensure first child element has key={${varName}.Id} or similar unique key`
-    );
-
-    const childContent = transformChildren(element.children || [], indent + '    ', context);
+    // Transform children with iteration context to inject key on first element
+    const iterContext = { ...context, iterationVar: varName, needsKey: true };
+    const childContent = transformChildrenWithIteration(element.children || [], indent + '    ', iterContext);
+    
     return `${indent}<template ${directives}>\n${childContent}${indent}</template>`;
   }
 
@@ -309,13 +395,13 @@ function transformNode(
   if (tagName === 'aura:set') {
     const attrName = element.attribs.attribute || '';
     const childContent = transformChildren(element.children || [], indent + '    ', context);
-    
+
     // Store facet content for later use
     context.facetContent.push({
       attributeName: attrName,
       content: childContent.trim(),
     });
-    
+
     // lightning-card has named slots for 'actions' and 'footer'
     if (attrName === 'actions' && context.parentTag?.includes('card')) {
       return `${indent}<div slot="actions">\n${childContent}${indent}</div>`;
@@ -323,13 +409,13 @@ function transformNode(
     if (attrName === 'footer' && context.parentTag?.includes('card')) {
       return `${indent}<div slot="footer">\n${childContent}${indent}</div>`;
     }
-    
+
     // For other facets, wrap in a named slot
     if (attrName) {
       context.warnings.push(`aura:set attribute="${attrName}" - verify slot name exists on parent component`);
       return `${indent}<div slot="${attrName}">\n${childContent}${indent}</div>`;
     }
-    
+
     context.warnings.push('aura:set found without attribute name - needs manual migration');
     return `${indent}<!-- TODO: Convert aura:set to slot content -->\n${childContent}`;
   }
@@ -338,7 +424,7 @@ function transformNode(
     const tag = element.attribs.tag || 'div';
     const body = element.attribs.body || '';
     context.warnings.push('aura:html found - verify dynamic HTML handling');
-    return `${indent}<${tag}>${convertExpression(body)}</${tag}>`;
+    return `${indent}<${tag}>${convertExpression(body, context)}</${tag}>`;
   }
 
   // Skip aura meta tags that don't produce output
@@ -368,7 +454,7 @@ function transformNode(
     }
 
     const lwcAttrName = convertAttributeName(key, mapping);
-    const lwcValue = convertExpression(value);
+    const lwcValue = convertExpression(value, context);
 
     // Handle event handlers
     if (key.startsWith('on') || lwcAttrName.startsWith('on')) {
@@ -406,6 +492,63 @@ function transformNode(
 /**
  * Transform array of child nodes
  */
+/**
+ * Transform children within an iteration context to inject key attribute on first element
+ */
+function transformChildrenWithIteration(
+  children: Node[],
+  indent: string,
+  context: {
+    warnings: string[];
+    usedDirectives: string[];
+    usedComponents: string[];
+    lmsChannels: LmsChannelConfig[];
+    recordDataServices: RecordDataConfig[];
+    facetContent: FacetContent[];
+    detectedGetters: DetectedGetter[];
+    parentTag?: string;
+    iterationVar?: string;
+    needsKey?: boolean;
+  }
+): string {
+  const parts: string[] = [];
+  let keyInjected = false;
+
+  for (const child of children) {
+    if (!keyInjected && context.needsKey && child.type === 'tag') {
+      const element = child as Element;
+      // Skip text and non-element nodes, find first actual element to inject key
+      // Inject key attribute on first element child
+      const varName = context.iterationVar || 'item';
+      
+      // Check if element already has a key attribute
+      const hasKey = element.attribs && ('key' in element.attribs);
+      
+      if (!hasKey) {
+        // Add key to the element's attributes
+        if (!element.attribs) {
+          element.attribs = {};
+        }
+        element.attribs['key'] = `{${varName}.Id}`;
+        context.warnings.push(
+          `Added key={${varName}.Id} to iteration - verify .Id is the correct unique identifier`
+        );
+      }
+      keyInjected = true;
+    }
+    
+    const result = transformNode(child, indent, context);
+    if (result) {
+      parts.push(result);
+    }
+  }
+
+  return parts.join('\n') + (parts.length > 0 ? '\n' : '');
+}
+
+/**
+ * Transform array of child nodes
+ */
 function transformChildren(
   children: Node[],
   indent: string,
@@ -416,6 +559,7 @@ function transformChildren(
     lmsChannels: LmsChannelConfig[];
     recordDataServices: RecordDataConfig[];
     facetContent: FacetContent[];
+    detectedGetters: DetectedGetter[];
     parentTag?: string;
   }
 ): string {
@@ -442,6 +586,7 @@ export function transformAuraMarkup(parsed: ParsedAuraMarkup): TransformedMarkup
     lmsChannels: [] as LmsChannelConfig[],
     recordDataServices: [] as RecordDataConfig[],
     facetContent: [] as FacetContent[],
+    detectedGetters: [] as DetectedGetter[],
   };
 
   const bodyContent = transformChildren(parsed.body, '    ', context);
@@ -455,6 +600,7 @@ export function transformAuraMarkup(parsed: ParsedAuraMarkup): TransformedMarkup
   logger.debug(`Transformed markup with ${context.warnings.length} warnings`);
   logger.debug(`Used directives: ${context.usedDirectives.join(', ')}`);
   logger.debug(`Used components: ${context.usedComponents.join(', ')}`);
+  logger.debug(`Detected ${context.detectedGetters.length} complex expressions for getters`);
 
   return {
     html,
@@ -464,5 +610,6 @@ export function transformAuraMarkup(parsed: ParsedAuraMarkup): TransformedMarkup
     lmsChannels: context.lmsChannels,
     recordDataServices: context.recordDataServices,
     facetContent: context.facetContent,
+    detectedGetters: context.detectedGetters,
   };
 }

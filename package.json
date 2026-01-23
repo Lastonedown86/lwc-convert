@@ -3,16 +3,29 @@
   "version": "1.0.0",
   "description": "CLI tool to convert Salesforce Aura and Visualforce components to Lightning Web Components",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "bin": {
     "lwc-convert": "./dist/index.js"
   },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
     "test": "jest",
     "lint": "eslint src/**/*.ts",
-    "format": "prettier --write src/**/*.ts"
+    "format": "prettier --write src/**/*.ts",
+    "prepublishOnly": "npm run build && npm test"
   },
   "keywords": [
     "salesforce",
@@ -20,17 +33,26 @@
     "aura",
     "visualforce",
     "converter",
-    "migration"
+    "migration",
+    "lightning-web-components",
+    "cli"
   ],
-  "author": "",
+  "author": "lwc-convert contributors",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Lastonedown86/lwc-convert.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Lastonedown86/lwc-convert/issues"
+  },
+  "homepage": "https://github.com/Lastonedown86/lwc-convert#readme",
   "dependencies": {
     "@babel/generator": "^7.23.0",
     "@babel/parser": "^7.23.0",
     "@babel/traverse": "^7.23.0",
     "@babel/types": "^7.23.0",
     "@clack/prompts": "^0.11.0",
-    "@types/inquirer": "^9.0.9",
     "chalk": "^4.1.2",
     "commander": "^11.1.0",
     "domhandler": "^5.0.3",
@@ -43,6 +65,7 @@
     "@types/babel__generator": "^7.6.8",
     "@types/babel__traverse": "^7.20.4",
     "@types/fs-extra": "^11.0.4",
+    "@types/inquirer": "^9.0.9",
     "@types/jest": "^29.5.11",
     "@types/node": "^20.10.5",
     "eslint": "^8.56.0",

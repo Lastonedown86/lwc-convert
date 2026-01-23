@@ -5,7 +5,7 @@
 
 import { ParsedAuraMarkup } from '../parsers/aura/markup-parser';
 import { ParsedAuraController } from '../parsers/aura/controller-parser';
-import { TransformedMarkup, LmsChannelConfig, RecordDataConfig } from '../transformers/aura-to-lwc/markup';
+import { TransformedMarkup } from '../transformers/aura-to-lwc/markup';
 import { toPascalCase, toLwcName } from '../utils/file-io';
 
 export interface GeneratedTest {
@@ -35,7 +35,6 @@ export function generateAuraToLwcTests(
   
   const imports: string[] = [];
   const mocks: string[] = [];
-  const testCases: string[] = [];
   
   // Always need createElement
   imports.push("import { createElement } from 'lwc';");

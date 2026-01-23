@@ -53,7 +53,7 @@ export async function convertVf(
   }
 
   // Update options with resolved controller path
-  const resolvedOptions = { ...options, controller: controllerPath };
+  // Controller path is used directly below
 
   // Show banner and conversion info
   logger.banner();

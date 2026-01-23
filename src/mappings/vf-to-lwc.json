@@ -94,6 +94,16 @@
       "alternativeLwc": "lightning-formatted-text",
       "notes": "Simple output can be direct text interpolation {value}"
     },
+    "apex:outputLink": {
+      "lwc": "a",
+      "alternativeLwc": "lightning-formatted-url",
+      "attributes": {
+        "value": "href",
+        "target": "target",
+        "styleClass": "class"
+      },
+      "notes": "Use anchor tag or lightning-formatted-url for links"
+    },
     "apex:outputLabel": {
       "lwc": "label",
       "notes": "Use HTML label element or include label in lightning-input"

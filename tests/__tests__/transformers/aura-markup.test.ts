@@ -23,12 +23,12 @@ describe('Aura to LWC Markup Transformer', () => {
     expect(result.html).toMatch(/<\/template>$/);
   });
 
-  test('should convert aura:if to template if:true/if:false', () => {
+  test('should convert aura:if to template lwc:if', () => {
     const parsed = parseAuraMarkup(sampleMarkup, 'SampleComponent');
     const result = transformAuraMarkup(parsed);
 
-    expect(result.html).toContain('if:true=');
-    expect(result.usedDirectives).toContain('if:true');
+    expect(result.html).toContain('lwc:if=');
+    expect(result.usedDirectives).toContain('lwc:if');
   });
 
   test('should convert aura:iteration to for:each', () => {
