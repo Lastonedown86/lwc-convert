@@ -1,0 +1,31 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+- GitHub Actions workflow for automated npm publishing
+- Release script for version management
+- CHANGELOG.md for tracking changes
+
+### Changed
+- Enhanced CI/CD pipeline with automated releases
+
+## [1.0.0] - 2026-01-23
+
+### Added
+- Initial release of lwc-convert CLI tool
+- Aura component to LWC conversion
+- Visualforce to LWC conversion
+- Interactive CLI with confidence scoring
+- Session storage for conversion history
+- Test case comparison between source and converted components
+- Comprehensive test suite
+- CI workflow for build and test status checks
+
+[Unreleased]: https://github.com/Lastonedown86/lwc-convert/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/Lastonedown86/lwc-convert/releases/tag/v1.0.0

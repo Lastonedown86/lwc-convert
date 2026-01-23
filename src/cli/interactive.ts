@@ -23,6 +23,7 @@ export interface TuiAnswers {
   outputDir: string;
   conversionMode: 'scaffolding' | 'full';
   openFolder: boolean;
+  preview: boolean;
 }
 
 // Step definitions for breadcrumbs
@@ -219,6 +220,7 @@ export async function runInteractiveTui(): Promise<TuiAnswers | null> {
   let outputDir: string = DEFAULT_OUTPUT_DIR;
   let conversionMode: 'scaffolding' | 'full' = 'scaffolding';
   let openFolder: boolean = true;
+  let preview: boolean = false;
 
   // Main wizard loop - allows navigation back to any step
   wizardLoop: while (currentStep < 4) {
@@ -564,6 +566,14 @@ export async function runInteractiveTui(): Promise<TuiAnswers | null> {
       if (isCancel(openResult)) return handleCancel();
       openFolder = openResult;
 
+      const previewResult = await p.confirm({
+        message: 'Generate UI preview in browser?',
+        initialValue: false,
+      });
+
+      if (isCancel(previewResult)) return handleCancel();
+      preview = previewResult;
+
       currentStep = 4;
     }
   } // end wizardLoop
@@ -586,6 +596,7 @@ export async function runInteractiveTui(): Promise<TuiAnswers | null> {
   summaryLines.push(`${color.dim('Mode:')}         ${conversionMode === 'full' ? '⚡ Full' : '📝 Scaffolding'}`);
   summaryLines.push(`${color.dim('Output:')}       ${outputDir}`);
   summaryLines.push(`${color.dim('Open folder:')} ${openFolder ? '✓ Yes' : '✗ No'}`);
+  summaryLines.push(`${color.dim('UI Preview:')}   ${preview ? '✓ Yes' : '✗ No'}`);
 
   p.note(summaryLines.join('\n'), '📋 Conversion Summary');
 
@@ -610,5 +621,6 @@ export async function runInteractiveTui(): Promise<TuiAnswers | null> {
     outputDir,
     conversionMode,
     openFolder,
+    preview,
   };
 }

@@ -19,8 +19,10 @@ test-patterns/
 *~
 
 # AI/Agent folders
-.agent/
-.claude/
+# .agent/ - committed to repo for project-wide AI assistance
+# .claude/commands/ - shared slash commands (committed)
+.claude/*
+!.claude/commands/
 
 # OS files
 .DS_Store
