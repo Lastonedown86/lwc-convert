@@ -23,8 +23,15 @@ jobs:
           release-type: node
 
       - name: Enable auto-merge for release PR
-        if: ${{ steps.release.outputs.pr_number }}
-        run: gh pr merge ${{ steps.release.outputs.pr_number }} --auto --squash --repo ${{ github.repository }}
+        run: |
+          # Find open release-please PR and enable auto-merge
+          PR=$(gh pr list --repo ${{ github.repository }} --label "autorelease: pending" --json number --jq '.[0].number')
+          if [ -n "$PR" ]; then
+            echo "Enabling auto-merge on PR #$PR"
+            gh pr merge "$PR" --auto --squash --repo ${{ github.repository }}
+          else
+            echo "No open release PR found"
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
