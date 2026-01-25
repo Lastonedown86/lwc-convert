@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1](https://github.com/Lastonedown86/lwc-convert/compare/v1.3.0...v1.3.1) (2026-01-25)
+
+
+### Bug Fixes
+
+* add VF component (.component) discovery to grading and convert commands ([#19](https://github.com/Lastonedown86/lwc-convert/issues/19)) ([52a6122](https://github.com/Lastonedown86/lwc-convert/commit/52a612251ea12a5a25ae43c96894604e7e319563))
+
 ## [1.3.0](https://github.com/Lastonedown86/lwc-convert/compare/v1.2.1...v1.3.0) (2026-01-25)
 
 
