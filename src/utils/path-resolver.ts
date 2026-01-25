@@ -15,11 +15,19 @@ const AURA_SEARCH_PATHS = [
 ];
 
 // Common Visualforce page locations in Salesforce projects
-const VF_SEARCH_PATHS = [
+const VF_PAGE_SEARCH_PATHS = [
   'force-app/main/default/pages',
   'src/pages',
   'pages',
   'force-app/main/pages',
+];
+
+// Common Visualforce component locations in Salesforce projects
+const VF_COMPONENT_SEARCH_PATHS = [
+  'force-app/main/default/components',
+  'src/components',
+  'components',
+  'force-app/main/components',
 ];
 
 // Common Apex controller locations
@@ -107,8 +115,8 @@ export async function resolveAuraPath(input: string): Promise<ResolvedPath> {
 }
 
 /**
- * Resolve a Visualforce page path
- * If just a name is provided, searches common locations
+ * Resolve a Visualforce page or component path
+ * If just a name is provided, searches common locations for both .page and .component files
  */
 export async function resolveVfPath(input: string): Promise<ResolvedPath> {
   // If it's already a full path, just return it
@@ -120,26 +128,55 @@ export async function resolveVfPath(input: string): Promise<ResolvedPath> {
     };
   }
 
-  // It's just a page name - search for it
-  let pageName = input;
-  // Add .page extension if not present
-  if (!pageName.endsWith('.page')) {
-    pageName = `${pageName}.page`;
-  }
-
   const cwd = process.cwd();
   const searchedLocations: string[] = [];
 
-  for (const searchPath of VF_SEARCH_PATHS) {
-    const fullPath = path.join(cwd, searchPath, pageName);
-    searchedLocations.push(fullPath);
+  // Check if extension is already provided
+  const hasPageExtension = input.endsWith('.page');
+  const hasComponentExtension = input.endsWith('.component');
 
-    if (await fs.pathExists(fullPath)) {
-      return {
-        found: true,
-        path: fullPath,
-        searchedLocations,
-      };
+  if (hasPageExtension) {
+    // Search only in page directories
+    for (const searchPath of VF_PAGE_SEARCH_PATHS) {
+      const fullPath = path.join(cwd, searchPath, input);
+      searchedLocations.push(fullPath);
+
+      if (await fs.pathExists(fullPath)) {
+        return { found: true, path: fullPath, searchedLocations };
+      }
+    }
+  } else if (hasComponentExtension) {
+    // Search only in component directories
+    for (const searchPath of VF_COMPONENT_SEARCH_PATHS) {
+      const fullPath = path.join(cwd, searchPath, input);
+      searchedLocations.push(fullPath);
+
+      if (await fs.pathExists(fullPath)) {
+        return { found: true, path: fullPath, searchedLocations };
+      }
+    }
+  } else {
+    // No extension provided - search for both .page and .component files
+    const baseName = input;
+
+    // First search for .page files
+    for (const searchPath of VF_PAGE_SEARCH_PATHS) {
+      const fullPath = path.join(cwd, searchPath, `${baseName}.page`);
+      searchedLocations.push(fullPath);
+
+      if (await fs.pathExists(fullPath)) {
+        return { found: true, path: fullPath, searchedLocations };
+      }
+    }
+
+    // Then search for .component files
+    for (const searchPath of VF_COMPONENT_SEARCH_PATHS) {
+      const fullPath = path.join(cwd, searchPath, `${baseName}.component`);
+      searchedLocations.push(fullPath);
+
+      if (await fs.pathExists(fullPath)) {
+        return { found: true, path: fullPath, searchedLocations };
+      }
     }
   }
 
