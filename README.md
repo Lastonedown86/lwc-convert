@@ -46,6 +46,7 @@ myComponent/
 ## ✨ Features
 
 ### 🎯 Single-Component Focus
+
 Unlike batch tools that sacrifice accuracy, `lwc-convert` processes **one component at a time** for maximum precision and detailed error reporting.
 
 ### 📝 Two Output Modes
@@ -56,13 +57,17 @@ Unlike batch tools that sacrifice accuracy, `lwc-convert` processes **one compon
 | **Full Conversion** (`--full`) | Complete transformation with `// REVIEW:` markers | Simple, standard components |
 
 ### 🔍 Smart Analysis
+
 - Parses Aura markup, controllers, helpers, and styles
 - Analyzes Apex controllers for VF pages
 - Detects patterns and suggests modern equivalents
 - Identifies potential issues upfront
+- **New!** 📊 **Complexity Grading**: Analyze components before conversion to estimate effort and identify risks.
 
 ### 📋 Conversion Notes
+
 Every conversion includes a detailed markdown file with:
+
 - ✅ Completed transformations
 - ⚠️ Items needing manual attention
 - 📖 Migration guidance and best practices
@@ -80,6 +85,7 @@ npx lwc-convert
 ```
 
 You'll be guided through:
+
 1. **Select conversion type** (Aura or Visualforce)
 2. **Choose component** from auto-discovered list or enter path
 3. **Configure options** (scaffolding/full, output dir, open folder)
@@ -147,7 +153,18 @@ lwc-convert vf ./pages/ContactList.page --controller ./classes/ContactListContro
 lwc-convert aura MyComponent --dry-run --verbose
 ```
 
+**Assess Conversion Complexity:**
+
+```bash
+# Grade a single component
+lwc-convert grade AccountCard --type aura
+
+# Scan entire project and export report
+lwc-convert grade --type both --format json --output report.json
+```
+
 > **💡 Smart Path Resolution:** The CLI automatically searches common Salesforce project locations:
+>
 > - `force-app/main/default/aura/`, `src/aura/`, `aura/`
 > - `force-app/main/default/pages/`, `src/pages/`, `pages/`
 > - `force-app/main/default/classes/`, `src/classes/`, `classes/`
@@ -161,6 +178,7 @@ lwc-convert aura MyComponent --dry-run --verbose
 ```bash
 lwc-convert aura <name-or-path>   # Convert Aura component bundle
 lwc-convert vf <name-or-path>     # Convert Visualforce page
+lwc-convert grade [target]        # Assess conversion complexity
 ```
 
 ### Global Options
@@ -198,6 +216,21 @@ lwc-convert vf <page-path> [options]
 | `--open` | Open output folder in file explorer | `false` |
 | `--dry-run` | Preview without writing files | `false` |
 | `--verbose` | Show detailed logs | `false` |
+
+### Grade Command Options
+
+```bash
+lwc-convert grade [target] [options]
+```
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-t, --type <type>` | Component type (`aura`, `vf`, `both`) | `both` |
+| `-o, --output <file>` | Output file for report | — |
+| `--format <format>` | Output format (`json`, `console`, `md`) | `console` |
+| `--detailed` | Show detailed breakdown | `false` |
+| `--sort-by <field>` | Sort by `score`, `complexity`, or `name` | `score` |
+| `--filter <filter>` | Filter results (e.g., `grade:D,F`) | — |
 
 ---
 
@@ -595,17 +628,20 @@ npm test -- --coverage                # Generate coverage report
 ## ⚠️ Limitations
 
 ### General
+
 - **Single component only** — No batch processing by design
 - **Static analysis** — Cannot detect runtime behavior
 - **Manual testing required** — Generated code should be tested
 
 ### Aura-Specific
+
 - Complex/nested expressions may need manual adjustment
 - `$A.createComponent` patterns require manual migration
 - Application events need manual pub/sub or LMS setup
 - Custom renderers need manual conversion
 
 ### Visualforce-Specific
+
 - `apex:actionRegion` needs architectural redesign
 - Page includes need component composition
 - `renderAs="pdf"` has no LWC equivalent
