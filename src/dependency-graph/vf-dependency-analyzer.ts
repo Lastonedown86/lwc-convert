@@ -303,6 +303,53 @@ export async function analyzeVfPage(
 }
 
 /**
+ * Analyze a single Visualforce component (.component file)
+ */
+export async function analyzeVfComponent(
+  componentPath: string
+): Promise<ComponentAnalysisResult | null> {
+  try {
+    let actualPath = componentPath;
+    if (!componentPath.endsWith('.component')) {
+      // Check if it's a directory with a .component file
+      if (await fs.pathExists(componentPath)) {
+        const stat = await fs.stat(componentPath);
+        if (stat.isDirectory()) {
+          const files = await fs.readdir(componentPath);
+          const componentFile = files.find((f) => f.endsWith('.component'));
+          if (componentFile) {
+            actualPath = path.join(componentPath, componentFile);
+          } else {
+            return null;
+          }
+        }
+      }
+    }
+
+    if (!(await fs.pathExists(actualPath))) {
+      logger.debug(`VF component not found: ${actualPath}`);
+      return null;
+    }
+
+    const markup = await fs.readFile(actualPath, 'utf-8');
+    const componentName = path.basename(actualPath, '.component');
+
+    const dependencies = extractVfDependencies(markup);
+
+    return {
+      id: `vf:${componentName}`,
+      name: componentName,
+      type: 'vf',
+      filePath: actualPath,
+      dependencies,
+    };
+  } catch (error: any) {
+    logger.debug(`Error analyzing VF component ${componentPath}: ${error.message}`);
+    return null;
+  }
+}
+
+/**
  * Read sfdx-project.json and return package directories
  */
 async function getPackageDirectories(rootPath: string): Promise<string[]> {
@@ -325,10 +372,11 @@ async function getPackageDirectories(rootPath: string): Promise<string[]> {
 }
 
 /**
- * Recursively find all 'pages' directories within a path
+ * Recursively find all 'pages' and 'components' directories within a path
  */
-async function findPagesDirectories(basePath: string): Promise<string[]> {
+async function findVfDirectories(basePath: string): Promise<{ pages: string[]; components: string[] }> {
   const pagesDirectories: string[] = [];
+  const componentsDirectories: string[] = [];
 
   async function searchDir(dirPath: string, depth: number = 0): Promise<void> {
     if (depth > 5) return; // Limit recursion depth
@@ -342,6 +390,8 @@ async function findPagesDirectories(basePath: string): Promise<string[]> {
 
           if (entry.name === 'pages') {
             pagesDirectories.push(fullPath);
+          } else if (entry.name === 'components') {
+            componentsDirectories.push(fullPath);
           } else if (!entry.name.startsWith('.') && entry.name !== 'node_modules') {
             await searchDir(fullPath, depth + 1);
           }
@@ -353,57 +403,80 @@ async function findPagesDirectories(basePath: string): Promise<string[]> {
   }
 
   await searchDir(basePath);
-  return pagesDirectories;
+  return { pages: pagesDirectories, components: componentsDirectories };
 }
 
 /**
- * Scan a directory for Visualforce pages and analyze all of them
+ * Scan a directory for Visualforce pages and components and analyze all of them
  */
 export async function scanVfPages(rootPath: string): Promise<ComponentAnalysisResult[]> {
   const results: ComponentAnalysisResult[] = [];
-  const searchPaths: string[] = [];
+  const pageSearchPaths: string[] = [];
+  const componentSearchPaths: string[] = [];
 
   // First, try to read sfdx-project.json for package directories
   const packageDirs = await getPackageDirectories(rootPath);
 
   if (packageDirs.length > 0) {
-    // Search within each package directory for 'pages' folders
+    // Search within each package directory for 'pages' and 'components' folders
     for (const pkgDir of packageDirs) {
-      const foundPagesDirs = await findPagesDirectories(pkgDir);
-      searchPaths.push(...foundPagesDirs);
+      const foundDirs = await findVfDirectories(pkgDir);
+      pageSearchPaths.push(...foundDirs.pages);
+      componentSearchPaths.push(...foundDirs.components);
     }
-    logger.debug(`Found pages directories from sfdx-project.json: ${searchPaths.join(', ')}`);
+    logger.debug(`Found pages directories from sfdx-project.json: ${pageSearchPaths.join(', ')}`);
+    logger.debug(`Found components directories from sfdx-project.json: ${componentSearchPaths.join(', ')}`);
   }
 
-  // Also add fallback common locations
-  const fallbackPaths = [
+  // Also add fallback common locations for pages
+  const fallbackPagePaths = [
     path.join(rootPath, 'force-app/main/default/pages'),
     path.join(rootPath, 'src/pages'),
     path.join(rootPath, 'pages'),
   ];
 
-  for (const fallback of fallbackPaths) {
-    if (!searchPaths.includes(fallback)) {
-      searchPaths.push(fallback);
+  for (const fallback of fallbackPagePaths) {
+    if (!pageSearchPaths.includes(fallback)) {
+      pageSearchPaths.push(fallback);
     }
   }
 
-  // Also check if rootPath itself is a pages directory or a .page file
+  // Also add fallback common locations for components
+  const fallbackComponentPaths = [
+    path.join(rootPath, 'force-app/main/default/components'),
+    path.join(rootPath, 'src/components'),
+    path.join(rootPath, 'components'),
+  ];
+
+  for (const fallback of fallbackComponentPaths) {
+    if (!componentSearchPaths.includes(fallback)) {
+      componentSearchPaths.push(fallback);
+    }
+  }
+
+  // Also check if rootPath itself is a pages/components directory or a .page/.component file
   if (rootPath.endsWith('.page')) {
-    searchPaths.unshift(rootPath);
+    pageSearchPaths.unshift(rootPath);
+  } else if (rootPath.endsWith('.component')) {
+    componentSearchPaths.unshift(rootPath);
   } else if (await fs.pathExists(rootPath)) {
     const stat = await fs.stat(rootPath);
     if (stat.isDirectory()) {
       const files = await fs.readdir(rootPath);
       if (files.some(f => f.endsWith('.page'))) {
-        searchPaths.unshift(rootPath);
+        pageSearchPaths.unshift(rootPath);
+      }
+      if (files.some(f => f.endsWith('.component'))) {
+        componentSearchPaths.unshift(rootPath);
       }
     }
   }
 
-  logger.debug(`Searching for VF pages in: ${searchPaths.join(', ')}`);
+  logger.debug(`Searching for VF pages in: ${pageSearchPaths.join(', ')}`);
+  logger.debug(`Searching for VF components in: ${componentSearchPaths.join(', ')}`);
 
-  for (const searchPath of searchPaths) {
+  // Scan for .page files
+  for (const searchPath of pageSearchPaths) {
     if (await fs.pathExists(searchPath)) {
       const stat = await fs.stat(searchPath);
 
@@ -419,6 +492,32 @@ export async function scanVfPages(rootPath: string): Promise<ComponentAnalysisRe
         for (const file of files) {
           if (file.endsWith('.page')) {
             const result = await analyzeVfPage(path.join(searchPath, file));
+            if (result) {
+              results.push(result);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Scan for .component files
+  for (const searchPath of componentSearchPaths) {
+    if (await fs.pathExists(searchPath)) {
+      const stat = await fs.stat(searchPath);
+
+      if (stat.isFile() && searchPath.endsWith('.component')) {
+        // Single component file
+        const result = await analyzeVfComponent(searchPath);
+        if (result) {
+          results.push(result);
+        }
+      } else if (stat.isDirectory()) {
+        // Scan directory for .component files
+        const files = await fs.readdir(searchPath);
+        for (const file of files) {
+          if (file.endsWith('.component')) {
+            const result = await analyzeVfComponent(path.join(searchPath, file));
             if (result) {
               results.push(result);
             }
