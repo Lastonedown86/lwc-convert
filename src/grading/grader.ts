@@ -15,66 +15,6 @@ export class Grader {
         this.vfGrader = new VfGrader();
     }
 
-    /**
-     * Read sfdx-project.json and return package directories
-     */
-    private async getPackageDirectories(rootPath: string): Promise<string[]> {
-        const sfdxProjectPath = path.join(rootPath, 'sfdx-project.json');
-
-        if (await fs.pathExists(sfdxProjectPath)) {
-            try {
-                const projectConfig = await fs.readJson(sfdxProjectPath);
-                if (projectConfig.packageDirectories && Array.isArray(projectConfig.packageDirectories)) {
-                    return projectConfig.packageDirectories.map((pkg: { path: string }) =>
-                        path.join(rootPath, pkg.path)
-                    );
-                }
-            } catch (error) {
-                logger.debug(`Error reading sfdx-project.json: ${error}`);
-            }
-        }
-
-        return [];
-    }
-
-    /**
-     * Recursively find 'pages', 'components', and 'aura' directories within a path
-     */
-    private async findSalesforceDirs(basePath: string): Promise<{ pages: string[]; components: string[]; aura: string[] }> {
-        const pagesDirectories: string[] = [];
-        const componentsDirectories: string[] = [];
-        const auraDirectories: string[] = [];
-
-        const searchDir = async (dirPath: string, depth: number = 0): Promise<void> => {
-            if (depth > 5) return; // Limit recursion depth
-
-            try {
-                const entries = await fs.readdir(dirPath, { withFileTypes: true });
-
-                for (const entry of entries) {
-                    if (entry.isDirectory()) {
-                        const fullPath = path.join(dirPath, entry.name);
-
-                        if (entry.name === 'pages') {
-                            pagesDirectories.push(fullPath);
-                        } else if (entry.name === 'components') {
-                            componentsDirectories.push(fullPath);
-                        } else if (entry.name === 'aura') {
-                            auraDirectories.push(fullPath);
-                        } else if (!entry.name.startsWith('.') && entry.name !== 'node_modules') {
-                            await searchDir(fullPath, depth + 1);
-                        }
-                    }
-                }
-            } catch {
-                // Ignore permission errors
-            }
-        };
-
-        await searchDir(basePath);
-        return { pages: pagesDirectories, components: componentsDirectories, aura: auraDirectories };
-    }
-
     async grade(options: GradingOptions): Promise<ComponentGrade[]> {
         const results: ComponentGrade[] = [];
 
@@ -87,7 +27,7 @@ export class Grader {
             if (grade) results.push(grade);
         } else {
             // Project or folder scope
-            const searchPaths = options.targetPath ? [options.targetPath] : await this.getStandardPaths(options.type);
+            const searchPaths = options.targetPath ? [options.targetPath] : this.getStandardPaths(options.type);
 
             for (const searchPath of searchPaths) {
                 const found = await this.scanDirectory(searchPath, options.type);
@@ -125,57 +65,23 @@ export class Grader {
             filePath.includes('/pages/') || filePath.includes('\\pages\\') ||
             filePath.includes('/components/') || filePath.includes('\\components\\')) return 'vf';
         // Default fallback - check file extension
-        if (filePath.endsWith('.page') || filePath.endsWith('.component')) return 'vf';
-        return 'aura';
+        return (filePath.endsWith('.page') || filePath.endsWith('.component')) ? 'vf' : 'aura';
     }
 
-    private async getStandardPaths(type: 'aura' | 'vf' | 'both'): Promise<string[]> {
+    private getStandardPaths(type: 'aura' | 'vf' | 'both'): string[] {
         const paths: string[] = [];
         const cwd = process.cwd();
 
-        // First, try to read sfdx-project.json for package directories
-        const packageDirs = await this.getPackageDirectories(cwd);
-
-        if (packageDirs.length > 0) {
-            // Search within each package directory for Salesforce directories
-            for (const pkgDir of packageDirs) {
-                const foundDirs = await this.findSalesforceDirs(pkgDir);
-                if (type === 'aura' || type === 'both') {
-                    paths.push(...foundDirs.aura);
-                }
-                if (type === 'vf' || type === 'both') {
-                    paths.push(...foundDirs.pages);
-                    paths.push(...foundDirs.components);
-                }
-            }
-            logger.debug(`Found directories from sfdx-project.json: ${paths.join(', ')}`);
-        }
-
-        // Also add fallback standard locations
         if (type === 'aura' || type === 'both') {
-            const auraFallbacks = [
-                path.join(cwd, 'force-app/main/default/aura'),
-                path.join(cwd, 'src/aura'),
-            ];
-            for (const fallback of auraFallbacks) {
-                if (!paths.includes(fallback)) {
-                    paths.push(fallback);
-                }
-            }
+            paths.push(path.join(cwd, 'force-app/main/default/aura'));
+            paths.push(path.join(cwd, 'src/aura'));
         }
 
         if (type === 'vf' || type === 'both') {
-            const vfFallbacks = [
-                path.join(cwd, 'force-app/main/default/pages'),
-                path.join(cwd, 'src/pages'),
-                path.join(cwd, 'force-app/main/default/components'),
-                path.join(cwd, 'src/components'),
-            ];
-            for (const fallback of vfFallbacks) {
-                if (!paths.includes(fallback)) {
-                    paths.push(fallback);
-                }
-            }
+            paths.push(path.join(cwd, 'force-app/main/default/pages'));
+            paths.push(path.join(cwd, 'src/pages'));
+            paths.push(path.join(cwd, 'force-app/main/default/components'));
+            paths.push(path.join(cwd, 'src/components'));
         }
 
         return paths;
@@ -203,11 +109,8 @@ export class Grader {
                     }
                     await walk(fullPath);
                 } else {
-                    // Find VF pages (.page) and VF components (.component)
-                    if (type !== 'aura') {
-                        if (entry.name.endsWith('.page') || entry.name.endsWith('.component')) {
-                            results.push(fullPath);
-                        }
+                    if (type !== 'aura' && (entry.name.endsWith('.page') || entry.name.endsWith('.component'))) {
+                        results.push(fullPath);
                     }
                 }
             }
