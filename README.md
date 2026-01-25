@@ -7,20 +7,6 @@
   <a href="#-features">Features</a> •
   <a href="#-conversion-mappings">Mappings</a> •
   <a href="#-cli-reference">CLI Reference</a> •
-  <a href="#-contributing">Contributing</a>
-</p>
-
----
-
-[![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/Lastonedown86/lwc-convert/pulls)
-
----
-
-## 🎯 Overview
-
 `lwc-convert` automates the migration of legacy Salesforce UI technologies to modern Lightning Web Components:
 
 | Source Technology | Target | Confidence |
