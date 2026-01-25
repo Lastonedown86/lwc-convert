@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0](https://github.com/Lastonedown86/lwc-convert/compare/v1.1.4...v1.2.0) (2026-01-25)
+
+
+### Features
+
+* add dependency graph analyzer for migration planning ([2ce8d79](https://github.com/Lastonedown86/lwc-convert/commit/2ce8d798f0775925a380940b1a51c368dba1322b))
+* add VS Code extension (packages/vscode) ([4bf445f](https://github.com/Lastonedown86/lwc-convert/commit/4bf445f2d7b40cc264162beb63329c9fd73e9b22))
+
 ## [1.1.4](https://github.com/Lastonedown86/lwc-convert/compare/v1.1.3...v1.1.4) (2026-01-25)
 
 
