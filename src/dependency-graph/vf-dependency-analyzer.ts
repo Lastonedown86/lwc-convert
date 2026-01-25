@@ -1,0 +1,351 @@
+/**
+ * Visualforce page dependency analyzer
+ * Extracts dependencies from VF pages including:
+ * - Custom components (c:*)
+ * - Apex controller and extensions
+ * - Page includes (apex:include)
+ * - Remote actions
+ * - Static resources
+ */
+
+import * as fs from 'fs-extra';
+import * as path from 'path';
+import * as htmlparser2 from 'htmlparser2';
+import { DomHandler, Element, Node } from 'domhandler';
+import { logger } from '../utils/logger';
+import {
+  ComponentAnalysisResult,
+  RawDependency,
+} from './types';
+
+/**
+ * Parse VF markup and extract all dependencies
+ */
+function extractVfDependencies(markup: string): RawDependency[] {
+  const dependencies: RawDependency[] = [];
+  const seen = new Set<string>();
+
+  function addDependency(dep: RawDependency) {
+    const key = `${dep.type}:${dep.target}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      dependencies.push(dep);
+    }
+  }
+
+  const handler = new DomHandler((error) => {
+    if (error) {
+      logger.debug(`VF markup parsing error: ${error.message}`);
+    }
+  });
+
+  const parser = new htmlparser2.Parser(handler, {
+    xmlMode: true,
+    recognizeSelfClosing: true,
+    lowerCaseTags: true,
+    lowerCaseAttributeNames: true,
+  });
+
+  parser.write(markup);
+  parser.end();
+
+  const dom = handler.dom;
+
+  // Find apex:page to extract controller info
+  function findApexPage(nodes: Node[]): Element | null {
+    for (const node of nodes) {
+      if (node.type === 'tag') {
+        const element = node as Element;
+        if (element.name === 'apex:page') {
+          return element;
+        }
+        if (element.children) {
+          const found = findApexPage(element.children);
+          if (found) return found;
+        }
+      }
+    }
+    return null;
+  }
+
+  const apexPage = findApexPage(dom);
+
+  if (apexPage) {
+    const attrs = apexPage.attribs || {};
+
+    // Custom Apex controller
+    if (attrs.controller) {
+      addDependency({
+        target: `apex:${attrs.controller}`,
+        type: 'controller',
+        expression: `controller="${attrs.controller}"`,
+      });
+    }
+
+    // Standard controller (object dependency)
+    if (attrs.standardcontroller) {
+      addDependency({
+        target: `sobject:${attrs.standardcontroller}`,
+        type: 'controller',
+        expression: `standardController="${attrs.standardcontroller}"`,
+      });
+    }
+
+    // Controller extensions
+    if (attrs.extensions) {
+      const extensions = attrs.extensions.split(',').map((s: string) => s.trim());
+      for (const ext of extensions) {
+        addDependency({
+          target: `apex:${ext}`,
+          type: 'extension',
+          expression: `extensions="${ext}"`,
+        });
+      }
+    }
+  }
+
+  // Traverse all nodes
+  function traverse(node: Node, lineEstimate: number): void {
+    if (node.type === 'tag') {
+      const element = node as Element;
+      const tagName = element.name;
+
+      // Custom component references (c:*)
+      if (tagName.startsWith('c:')) {
+        addDependency({
+          target: tagName,
+          type: 'component',
+          lineNumber: lineEstimate,
+          expression: `<${tagName}>`,
+        });
+      }
+
+      // apex:include - page includes
+      if (tagName === 'apex:include') {
+        const pageName = element.attribs?.pagename;
+        if (pageName) {
+          addDependency({
+            target: `vf:${pageName}`,
+            type: 'include',
+            lineNumber: lineEstimate,
+            expression: `<apex:include pageName="${pageName}">`,
+          });
+        }
+      }
+
+      // apex:composition - template usage
+      if (tagName === 'apex:composition') {
+        const template = element.attribs?.template;
+        if (template) {
+          addDependency({
+            target: `vf:${template}`,
+            type: 'include',
+            lineNumber: lineEstimate,
+            expression: `<apex:composition template="${template}">`,
+          });
+        }
+      }
+
+      // apex:component - custom component usage
+      if (tagName === 'apex:component') {
+        // This is a component definition, not a reference
+        // But check if it references a controller
+        const controller = element.attribs?.controller;
+        if (controller) {
+          addDependency({
+            target: `apex:${controller}`,
+            type: 'controller',
+            lineNumber: lineEstimate,
+            expression: `controller="${controller}"`,
+          });
+        }
+      }
+
+      // Recurse into children
+      if (element.children) {
+        element.children.forEach((child, i) => traverse(child, lineEstimate + i));
+      }
+    }
+  }
+
+  dom.forEach((node, i) => traverse(node, i + 1));
+
+  // Extract dependencies from expressions in markup
+  extractExpressionDependencies(markup, addDependency);
+
+  // Extract remote action dependencies
+  extractRemoteActionDependencies(markup, addDependency);
+
+  return dependencies;
+}
+
+/**
+ * Extract dependencies from VF expressions like {!$Resource.xxx} and {!$Label.xxx}
+ */
+function extractExpressionDependencies(
+  markup: string,
+  addDependency: (dep: RawDependency) => void
+): void {
+  const lines = markup.split('\n');
+
+  lines.forEach((line, lineNum) => {
+    // $Resource references
+    const resourceMatches = line.matchAll(/\{\!\$Resource\.([^}]+)\}/g);
+    for (const match of resourceMatches) {
+      addDependency({
+        target: `resource:${match[1]}`,
+        type: 'staticResource',
+        lineNumber: lineNum + 1,
+        expression: match[0],
+      });
+    }
+
+    // $Label references
+    const labelMatches = line.matchAll(/\{\!\$Label\.([^}]+)\}/g);
+    for (const match of labelMatches) {
+      addDependency({
+        target: `label:${match[1]}`,
+        type: 'label',
+        lineNumber: lineNum + 1,
+        expression: match[0],
+      });
+    }
+  });
+}
+
+/**
+ * Extract RemoteAction patterns from JavaScript
+ */
+function extractRemoteActionDependencies(
+  content: string,
+  addDependency: (dep: RawDependency) => void
+): void {
+  const lines = content.split('\n');
+
+  lines.forEach((line, lineNum) => {
+    // Visualforce.remoting.Manager.invokeAction pattern
+    const invokeMatch = line.match(
+      /(?:Visualforce\.remoting\.Manager\.invokeAction|invokeAction)\s*\(\s*['"]([^'"]+)['"]/
+    );
+    if (invokeMatch) {
+      const fullRef = invokeMatch[1];
+      const parts = fullRef.split('.');
+      if (parts.length >= 2) {
+        const controller = parts.slice(0, -1).join('.');
+        addDependency({
+          target: `apex:${controller}`,
+          type: 'controller',
+          lineNumber: lineNum + 1,
+          expression: invokeMatch[0],
+        });
+      }
+    }
+
+    // $RemoteAction.Controller.method pattern
+    const remoteActionMatch = line.match(/\{\!\$RemoteAction\.([^.]+)\.(\w+)\}/);
+    if (remoteActionMatch) {
+      addDependency({
+        target: `apex:${remoteActionMatch[1]}`,
+        type: 'controller',
+        lineNumber: lineNum + 1,
+        expression: remoteActionMatch[0],
+      });
+    }
+  });
+}
+
+/**
+ * Analyze a single Visualforce page
+ */
+export async function analyzeVfPage(
+  pagePath: string
+): Promise<ComponentAnalysisResult | null> {
+  try {
+    // Handle both .page files and directories
+    let actualPath = pagePath;
+    if (!pagePath.endsWith('.page')) {
+      // Check if it's a directory with a .page file
+      if (await fs.pathExists(pagePath)) {
+        const stat = await fs.stat(pagePath);
+        if (stat.isDirectory()) {
+          const files = await fs.readdir(pagePath);
+          const pageFile = files.find((f) => f.endsWith('.page'));
+          if (pageFile) {
+            actualPath = path.join(pagePath, pageFile);
+          } else {
+            return null;
+          }
+        }
+      }
+    }
+
+    if (!(await fs.pathExists(actualPath))) {
+      logger.debug(`VF page not found: ${actualPath}`);
+      return null;
+    }
+
+    const markup = await fs.readFile(actualPath, 'utf-8');
+    const pageName = path.basename(actualPath, '.page');
+
+    const dependencies = extractVfDependencies(markup);
+
+    return {
+      id: `vf:${pageName}`,
+      name: pageName,
+      type: 'vf',
+      filePath: actualPath,
+      dependencies,
+    };
+  } catch (error: any) {
+    logger.debug(`Error analyzing VF page ${pagePath}: ${error.message}`);
+    return null;
+  }
+}
+
+/**
+ * Scan a directory for Visualforce pages and analyze all of them
+ */
+export async function scanVfPages(rootPath: string): Promise<ComponentAnalysisResult[]> {
+  const results: ComponentAnalysisResult[] = [];
+
+  // Common VF page locations
+  const searchPaths = [
+    path.join(rootPath, 'force-app/main/default/pages'),
+    path.join(rootPath, 'src/pages'),
+    path.join(rootPath, 'pages'),
+    rootPath, // Direct path
+  ];
+
+  for (const searchPath of searchPaths) {
+    if (await fs.pathExists(searchPath)) {
+      const stat = await fs.stat(searchPath);
+
+      if (stat.isFile() && searchPath.endsWith('.page')) {
+        // Single page file
+        const result = await analyzeVfPage(searchPath);
+        if (result) {
+          results.push(result);
+        }
+      } else if (stat.isDirectory()) {
+        // Scan directory for .page files
+        const files = await fs.readdir(searchPath);
+        for (const file of files) {
+          if (file.endsWith('.page')) {
+            const result = await analyzeVfPage(path.join(searchPath, file));
+            if (result) {
+              results.push(result);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Remove duplicates by id
+  const seen = new Set<string>();
+  return results.filter((r) => {
+    if (seen.has(r.id)) return false;
+    seen.add(r.id);
+    return true;
+  });
+}

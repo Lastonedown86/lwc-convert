@@ -67,6 +67,9 @@ program
 // Grading command
 import { grade } from './cli/commands/grade';
 
+// Dependency graph command
+import { analyzeDeps } from './cli/commands/deps';
+
 program
   .command('grade [target]')
   .description('Assess conversion complexity of components')
@@ -81,6 +84,36 @@ program
   .action(async (target, options) => {
     logger.setVerbose(options.verbose);
     await grade(target, options);
+  });
+
+// Dependency graph command
+program
+  .command('deps [target]')
+  .description('Analyze and visualize component dependencies')
+  .option('-t, --type <type>', 'Component type (aura, vf, both)', 'both')
+  .option('-o, --output <file>', 'Output file path')
+  .option('--format <format>', 'Output format (console, json, mermaid)', 'console')
+  .option('--conversion-order', 'Show recommended conversion order', false)
+  .option('--focus <component>', 'Focus on specific component and its dependencies')
+  .option('--depth <n>', 'Maximum depth to traverse (0 = unlimited)', '0')
+  .option('--include-base', 'Include base Lightning components', false)
+  .option('--show-orphans', 'Show components with no dependencies', false)
+  .option('--circular-only', 'Only show circular dependencies', false)
+  .option('--verbose', 'Show detailed analysis logs', false)
+  .action(async (target, options) => {
+    logger.setVerbose(options.verbose);
+    await analyzeDeps(target, {
+      type: options.type,
+      output: options.output,
+      format: options.format,
+      conversionOrder: options.conversionOrder,
+      focus: options.focus,
+      depth: options.depth,
+      includeBase: options.includeBase,
+      showOrphans: options.showOrphans,
+      circularOnly: options.circularOnly,
+      verbose: options.verbose,
+    });
   });
 
 // Session management command
@@ -179,6 +212,13 @@ Examples:
   $ ${CLI_NAME} session
   $ ${CLI_NAME} session --report
   $ ${CLI_NAME} session --patterns
+
+  # Analyze component dependencies
+  $ ${CLI_NAME} deps
+  $ ${CLI_NAME} deps --conversion-order
+  $ ${CLI_NAME} deps --focus AccountCard
+  $ ${CLI_NAME} deps --format mermaid -o deps.md
+  $ ${CLI_NAME} deps --format json -o deps.json
 
 Smart Path Resolution:
   The CLI searches common Salesforce project locations automatically:
