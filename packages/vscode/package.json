@@ -1,0 +1,231 @@
+{
+  "name": "lwc-convert-vscode",
+  "displayName": "LWC Convert",
+  "description": "Convert Aura and Visualforce components to Lightning Web Components",
+  "version": "0.1.0",
+  "publisher": "lwc-convert",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Lastonedown86/lwc-convert-vscode"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Linters",
+    "Visualization"
+  ],
+  "keywords": [
+    "salesforce",
+    "lwc",
+    "lightning",
+    "aura",
+    "visualforce",
+    "migration",
+    "conversion"
+  ],
+  "activationEvents": [
+    "workspaceContains:**/*.cmp",
+    "workspaceContains:**/*.page",
+    "workspaceContains:**/aura/**",
+    "workspaceContains:**/pages/**"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "lwcConvert.convertComponent",
+        "title": "Convert to LWC",
+        "category": "LWC Convert",
+        "icon": "$(arrow-swap)"
+      },
+      {
+        "command": "lwcConvert.convertWithPreview",
+        "title": "Convert to LWC (Preview)",
+        "category": "LWC Convert",
+        "icon": "$(preview)"
+      },
+      {
+        "command": "lwcConvert.gradeComponent",
+        "title": "Grade Conversion Complexity",
+        "category": "LWC Convert",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "lwcConvert.gradeWorkspace",
+        "title": "Grade All Components in Workspace",
+        "category": "LWC Convert"
+      },
+      {
+        "command": "lwcConvert.showDependencyGraph",
+        "title": "Show Dependency Graph",
+        "category": "LWC Convert",
+        "icon": "$(type-hierarchy)"
+      },
+      {
+        "command": "lwcConvert.showConversionOrder",
+        "title": "Show Recommended Conversion Order",
+        "category": "LWC Convert"
+      },
+      {
+        "command": "lwcConvert.refreshTreeView",
+        "title": "Refresh Component Explorer",
+        "category": "LWC Convert",
+        "icon": "$(refresh)"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "lwcConvert.convertComponent",
+          "when": "resourceExtname == .cmp || resourceExtname == .page",
+          "group": "lwcConvert@1"
+        },
+        {
+          "command": "lwcConvert.convertWithPreview",
+          "when": "resourceExtname == .cmp || resourceExtname == .page",
+          "group": "lwcConvert@2"
+        },
+        {
+          "command": "lwcConvert.gradeComponent",
+          "when": "resourceExtname == .cmp || resourceExtname == .page",
+          "group": "lwcConvert@3"
+        },
+        {
+          "command": "lwcConvert.showDependencyGraph",
+          "when": "explorerResourceIsFolder",
+          "group": "lwcConvert@4"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "lwcConvert.convertComponent",
+          "when": "resourceExtname == .cmp || resourceExtname == .page",
+          "group": "lwcConvert@1"
+        },
+        {
+          "command": "lwcConvert.gradeComponent",
+          "when": "resourceExtname == .cmp || resourceExtname == .page",
+          "group": "lwcConvert@2"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "lwcConvert.convertWithPreview",
+          "when": "resourceExtname == .cmp || resourceExtname == .page",
+          "group": "navigation"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "lwcConvert.refreshTreeView",
+          "when": "view == lwcConvert.componentExplorer",
+          "group": "navigation"
+        },
+        {
+          "command": "lwcConvert.gradeWorkspace",
+          "when": "view == lwcConvert.componentExplorer",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "lwcConvert.convertComponent",
+          "when": "view == lwcConvert.componentExplorer && viewItem =~ /^(aura|vf)$/",
+          "group": "inline"
+        },
+        {
+          "command": "lwcConvert.gradeComponent",
+          "when": "view == lwcConvert.componentExplorer && viewItem =~ /^(aura|vf)$/",
+          "group": "1_actions@1"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "lwcConvert",
+          "title": "LWC Convert",
+          "icon": "media/icons/lwc-convert.svg"
+        }
+      ]
+    },
+    "views": {
+      "lwcConvert": [
+        {
+          "id": "lwcConvert.componentExplorer",
+          "name": "Component Explorer",
+          "contextualTitle": "Aura & VF Components"
+        },
+        {
+          "id": "lwcConvert.gradingSummary",
+          "name": "Grading Summary",
+          "contextualTitle": "Complexity Grades"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "lwcConvert.componentExplorer",
+        "contents": "No Aura or Visualforce components found.\n[Scan Workspace](command:lwcConvert.refreshTreeView)"
+      }
+    ],
+    "configuration": {
+      "title": "LWC Convert",
+      "properties": {
+        "lwcConvert.outputDirectory": {
+          "type": "string",
+          "default": "force-app/main/default/lwc",
+          "description": "Default output directory for converted LWC components"
+        },
+        "lwcConvert.conversionMode": {
+          "type": "string",
+          "enum": [
+            "scaffolding",
+            "full"
+          ],
+          "default": "scaffolding",
+          "description": "Default conversion mode (scaffolding or full automation)"
+        },
+        "lwcConvert.showGradeDecorations": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show inline grade decorations in Aura/VF files"
+        },
+        "lwcConvert.autoGradeOnOpen": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically grade components when opened"
+        },
+        "lwcConvert.showCodeLens": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show CodeLens actions in Aura/VF files"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js",
+    "package": "vsce package"
+  },
+  "dependencies": {
+    "lwc-convert": "^1.1.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "@vscode/test-electron": "^2.3.8",
+    "@vscode/vsce": "^2.22.0",
+    "eslint": "^8.55.0",
+    "typescript": "^5.3.3"
+  }
+}
