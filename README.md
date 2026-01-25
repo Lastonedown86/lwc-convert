@@ -711,7 +711,11 @@ Contributions are welcome! Here's how to help:
 - Follow existing code style
 - Add tests for new features
 - Update documentation for new mappings
-- Keep commits focused and atomic
+- Use [Conventional Commits](https://www.conventionalcommits.org/) format:
+  - `feat: add new feature` (triggers minor release)
+  - `fix: resolve bug` (triggers patch release)
+  - `docs: update README` (no release)
+  - `feat!: breaking change` (triggers major release)
 
 ---
 
