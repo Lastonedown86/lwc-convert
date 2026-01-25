@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.1](https://github.com/Lastonedown86/lwc-convert/compare/v1.2.0...v1.2.1) (2026-01-25)
+
+
+### Bug Fixes
+
+* add support for VF components (.component files) ([81f4133](https://github.com/Lastonedown86/lwc-convert/commit/81f4133a29f582a069778c9a5f73608277ccb54a))
+* improve project scanning to read sfdx-project.json ([4077442](https://github.com/Lastonedown86/lwc-convert/commit/40774426fce7fe8fb9c897712ae31673c292ce5d))
+
 ## [1.2.0] - 2026-01-25
 - Add feature XYZ
 
