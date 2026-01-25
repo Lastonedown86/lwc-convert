@@ -240,8 +240,8 @@ if (process.argv.slice(2).length === 0) {
       }
     }
   }).catch((err) => {
-    console.error('Failed to start interactive mode:', err.message);
-    if (err.stack) console.error(err.stack);
+    logger.error(`Failed to start interactive mode: ${err.message}`);
+    if (err.stack) logger.debug(err.stack);
     program.outputHelp();
   });
 } else {
