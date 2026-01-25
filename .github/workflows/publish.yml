@@ -1,12 +1,17 @@
-name: Publish to npm
+name: Publish Release
 
 on:
-  push:
-    tags:
-      - 'v*.*.*'
+  pull_request:
+    types: [closed]
+    branches:
+      - main
 
 jobs:
   publish:
+    # Only run when a release branch PR is merged
+    if: |
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.head.ref, 'release/')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -32,15 +37,17 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Verify version matches tag
+      - name: Get version and create tag
+        id: version
         run: |
-          PACKAGE_VERSION=$(node -p "require('./package.json').version")
-          TAG_VERSION=${GITHUB_REF#refs/tags/v}
-          if [ "$PACKAGE_VERSION" != "$TAG_VERSION" ]; then
-            echo "Error: package.json version ($PACKAGE_VERSION) doesn't match tag ($TAG_VERSION)"
-            exit 1
-          fi
-          echo "Version check passed: $PACKAGE_VERSION"
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v$VERSION"
+          git push origin "v$VERSION"
+          echo "Created tag v$VERSION"
 
       - name: Publish to npm
         run: npm publish --provenance --access public
@@ -48,17 +55,14 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create GitHub Release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Release v${{ steps.version.outputs.version }}
           body: |
             ## Changes in this release
 
-            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
+            See the [commits](https://github.com/${{ github.repository }}/compare/v${{ steps.version.outputs.version }}...main) for details.
 
-            **Install:** `npm install lwc-convert@${{ github.ref_name }}`
-          draft: false
-          prerelease: false
+            **Install:** `npm install lwc-convert@${{ steps.version.outputs.version }}`
+          generate_release_notes: true
