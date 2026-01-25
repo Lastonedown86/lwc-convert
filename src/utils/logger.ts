@@ -17,7 +17,7 @@ const COLORS = {
   bgGreen: '\x1b[42m',
 };
 
-// Emojis for visual feedback
+// Icons for visual feedback
 const ICONS = {
   success: '✓',
   error: '✗',
@@ -29,7 +29,6 @@ const ICONS = {
   component: '⚡',
   test: '🧪',
   docs: '📄',
-  lightning: '⚡',
   aura: '🌀',
   vf: '📋',
 };
