@@ -23,12 +23,8 @@ jobs:
           release-type: node
 
       - name: Enable auto-merge for release PR
-        if: ${{ steps.release.outputs.prs_created == 'true' || steps.release.outputs.pr }}
-        run: |
-          PR_NUMBER="${{ steps.release.outputs.pr }}"
-          if [ -n "$PR_NUMBER" ]; then
-            gh pr merge "$PR_NUMBER" --auto --squash --repo ${{ github.repository }}
-          fi
+        if: ${{ steps.release.outputs.pr_number }}
+        run: gh pr merge ${{ steps.release.outputs.pr_number }} --auto --squash --repo ${{ github.repository }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
