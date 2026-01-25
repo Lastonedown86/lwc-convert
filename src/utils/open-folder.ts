@@ -4,6 +4,7 @@
 
 import { exec } from 'child_process';
 import * as os from 'os';
+import { logger } from './logger';
 
 /**
  * Opens the specified folder in the system's file explorer.
@@ -32,7 +33,7 @@ export function openFolder(folderPath: string): Promise<void> {
     exec(command, (error) => {
       if (error) {
         // Don't fail the whole conversion if we can't open the folder
-        console.warn(`Could not open folder: ${error.message}`);
+        logger.warn(`Could not open folder: ${error.message}`);
         resolve();
       } else {
         resolve();
