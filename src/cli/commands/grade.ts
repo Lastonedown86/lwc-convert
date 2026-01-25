@@ -4,6 +4,7 @@ import { logger } from '../../utils/logger';
 import { Grader } from '../../grading/grader';
 import { GradingOptions, ComponentGrade, GradingSummary } from '../../grading/types';
 import { resolveAuraPath, resolveVfPath } from '../../utils/path-resolver';
+import { launchGradeTui, shouldUseInteractive } from '../tui/grade-tui';
 
 export async function grade(
     target: string | undefined,
@@ -101,8 +102,11 @@ export async function grade(
             } else {
                 console.log(JSON.stringify(output, null, 2));
             }
+        } else if (options.interactive !== false && shouldUseInteractive() && !options.output) {
+            // Launch interactive TUI
+            await launchGradeTui(filteredResults, summary);
         } else {
-            // Console output
+            // Console output (non-interactive)
             printConsoleReport(filteredResults, summary, options.detailed);
         }
 
