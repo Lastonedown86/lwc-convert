@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/Lastonedown86/lwc-convert/compare/v1.2.1...v1.3.0) (2026-01-25)
+
+
+### Features
+
+* add interactive TUI for grade complexity ([#17](https://github.com/Lastonedown86/lwc-convert/issues/17)) ([9f54955](https://github.com/Lastonedown86/lwc-convert/commit/9f54955fca3738da1de8854536da46fbc293745d))
+
 ## [1.2.1](https://github.com/Lastonedown86/lwc-convert/compare/v1.2.0...v1.2.1) (2026-01-25)
 
 
