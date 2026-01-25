@@ -64,6 +64,25 @@ program
     });
   });
 
+// Grading command
+import { grade } from './cli/commands/grade';
+
+program
+  .command('grade [target]')
+  .description('Assess conversion complexity of components')
+  .option('-t, --type <type>', 'Component type (aura, vf, both)', 'both')
+  .option('-o, --output <file>', 'Output file for report')
+  .option('--format <format>', 'Output format (json, console)', 'console')
+  .option('--detailed', 'Show detailed breakdown', false)
+  .option('--sort-by <field>', 'Sort by (score, complexity, name)')
+  .option('--filter <filter>', 'Filter results (e.g., "grade:D,F")')
+  .option('--dry-run', 'Run without writing files', false)
+  .option('--verbose', 'Show detailed logs', false)
+  .action(async (target, options) => {
+    logger.setVerbose(options.verbose);
+    await grade(target, options);
+  });
+
 // Session management command
 program
   .command('session')
@@ -74,19 +93,19 @@ program
   .action(async (options) => {
     await sessionStore.init();
     const summary = sessionStore.getSessionSummary();
-    
+
     if (options.cleanup) {
       await sessionStore.cleanup();
       logger.success('Session data cleaned up');
       return;
     }
-    
+
     if (options.report) {
       const report = sessionStore.generateSessionReport();
       console.log(report);
       return;
     }
-    
+
     if (options.patterns) {
       logger.header('Session Pattern Library');
       const patterns = summary.patternLibrary;
@@ -102,7 +121,7 @@ program
       }
       return;
     }
-    
+
     // Default: show session summary
     logger.banner();
     logger.header('Current Session');
@@ -112,7 +131,7 @@ program
     logger.info(`Behaviors mapped: ${summary.totalBehaviors}`);
     logger.info(`Patterns learned: ${summary.patternLibrary.length}`);
     logger.info(`Session directory: ${sessionStore.getSessionDir()}`);
-    
+
     if (summary.conversions > 0) {
       logger.blank();
       logger.subheader('Recent Conversions:');
@@ -121,7 +140,7 @@ program
         console.log(`  • ${conv.sourceName} → ${conv.targetName} (${conv.behaviorCount} behaviors)`);
       }
     }
-    
+
     if (summary.commonWarnings.length > 0) {
       logger.blank();
       logger.subheader('Common Warnings:');
@@ -183,34 +202,46 @@ if (process.argv.slice(2).length === 0) {
   // Dynamic import to avoid loading TUI dependencies if not needed
   import('./cli/interactive').then(async ({ runInteractiveTui }) => {
     const answers = await runInteractiveTui();
-    
+
     if (answers) {
       // Execute the conversion based on user selections
       logger.setVerbose(false);
 
-      if (answers.conversionType === 'aura') {
+      if (answers.action === 'grade') {
+        if (answers.gradingOptions) {
+          await grade(answers.gradingOptions.targetPath, {
+            type: answers.gradingOptions.type,
+            output: answers.gradingOptions.exportDir,
+            format: answers.gradingOptions.exportFormats?.[0],
+            detailed: answers.gradingOptions.detailLevel === 'detailed',
+            dryRun: false,
+            verbose: false
+          });
+        }
+      } else if (answers.conversionType === 'aura' && answers.componentPath) {
         await convertAura(answers.componentPath, {
-          output: answers.outputDir,
+          output: answers.outputDir || DEFAULT_OUTPUT_DIR,
           full: answers.conversionMode === 'full',
           dryRun: false,
           verbose: false,
-          open: answers.openFolder,
-          preview: answers.preview,
+          open: !!answers.openFolder,
+          preview: !!answers.preview,
         });
-      } else {
+      } else if (answers.conversionType === 'vf' && answers.componentPath) {
         await convertVf(answers.componentPath, {
-          output: answers.outputDir,
+          output: answers.outputDir || DEFAULT_OUTPUT_DIR,
           full: answers.conversionMode === 'full',
           dryRun: false,
           verbose: false,
           controller: answers.controllerPath,
-          open: answers.openFolder,
-          preview: answers.preview,
+          open: !!answers.openFolder,
+          preview: !!answers.preview,
         });
       }
     }
   }).catch((err) => {
     console.error('Failed to start interactive mode:', err.message);
+    if (err.stack) console.error(err.stack);
     program.outputHelp();
   });
 } else {

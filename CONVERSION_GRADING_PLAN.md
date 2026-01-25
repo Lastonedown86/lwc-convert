@@ -1,0 +1,2421 @@
+# Conversion Complexity Grading Feature - Implementation Plan
+
+## Overview
+This document outlines the plan for implementing a conversion complexity grading system that assesses Aura components and Visualforce pages before conversion to LWC. This feature helps users understand the effort required for conversion and prioritize components.
+
+---
+
+## 1. Grading Scale Decision
+
+### **Recommended: Hybrid Approach**
+
+Use **letter grades (A-F)** with **numeric scores (0-100)** underneath:
+
+```
+Grade A (90-100): Simple - Highly automatable
+Grade B (75-89):  Easy - Mostly automatable with minor adjustments
+Grade C (60-74):  Moderate - Requires attention in specific areas
+Grade D (45-59):  Complex - Significant manual work required
+Grade F (0-44):   Very Complex - Extensive manual refactoring needed
+```
+
+### **Rationale:**
+- **Letters** are intuitive and quickly communicate difficulty at a glance
+- **Numbers** provide granular detail and enable sorting/filtering
+- **Aligns** with existing confidence scorer (already uses 0-100)
+- **Industry standard** for complexity assessment (technical debt grading)
+
+---
+
+## 2. Feature Requirements
+
+### **2.1 Component Type Selection**
+Users can specify:
+- ✅ Aura components
+- ✅ Visualforce pages
+- ✅ Both (project-wide scan)
+
+### **2.2 Scope Selection**
+Users can scan:
+- ✅ **Entire project**: Scan all components in standard directories
+- ✅ **Specific component**: Single component by name (e.g., `AccountCard`)
+- ✅ **Specific file**: Direct file path (e.g., `./aura/AccountCard/AccountCard.cmp`)
+- ✅ **Component folder**: Directory containing multiple components (e.g., `./aura/`)
+
+### **2.3 Output Options**
+- Summary report (console table)
+- Detailed JSON export
+- CSV export for spreadsheet analysis
+- HTML report with visualizations
+- Markdown report for documentation
+
+### **2.4 Grading Criteria**
+
+Each component is assessed across multiple dimensions:
+
+#### **For Aura Components:**
+1. **Component Mappings** (25%): Complexity of tag transformations
+2. **JavaScript Patterns** (25%): Controller/helper complexity
+3. **Data Binding** (20%): Attribute and event handling
+4. **Lifecycle & Events** (15%): Custom events, LMS, lifecycle hooks
+5. **Dependencies** (10%): Third-party components, custom dependencies
+6. **Styling** (5%): CSS complexity and Aura-specific features
+
+#### **For Visualforce Pages:**
+1. **Component Mappings** (25%): VF component → LWC mappings
+2. **Apex Integration** (30%): Controller, extensions, remote actions
+3. **Data Binding** (20%): Expression complexity and formulas
+4. **Page Structure** (10%): Layout, sections, rendering logic
+5. **JavaScript** (10%): Inline JS, RemoteAction patterns
+6. **Special Features** (5%): PDF rendering, charting, custom components
+
+---
+
+## 3. Architecture Design
+
+### **3.1 New Files to Create**
+
+```
+src/
+├── grading/
+│   ├── grader.ts                    # Main grading orchestrator
+│   ├── aura-grader.ts               # Aura-specific grading logic
+│   ├── vf-grader.ts                 # VF-specific grading logic
+│   ├── complexity-metrics.ts        # Shared complexity calculation
+│   ├── grade-calculator.ts          # Convert scores to letter grades
+│   ├── grading-report.ts            # Report generation and formatting
+│   ├── grading-tui.ts               # Interactive TUI for grading flow
+│   │
+│   ├── advanced/                    # Advanced TUI features (Phase 6)
+│   │   ├── component-comparison.ts  # Side-by-side component comparison
+│   │   ├── saved-configs.ts         # Save/load grading configurations
+│   │   ├── batch-pipeline.ts        # Grade & convert pipeline orchestration
+│   │   ├── priority-queue.ts        # Dependency-based priority ordering
+│   │   ├── component-grouping.ts    # Group and organize results
+│   │   ├── visualization.ts         # ASCII charts and trends
+│   │   ├── health-dashboard.ts      # Project health metrics
+│   │   ├── collaboration.ts         # Team sharing and export
+│   │   ├── watch-mode.ts            # File system monitoring
+│   │   ├── session-manager.ts       # Progress save/resume
+│   │   └── custom-weights.ts        # Custom grading weight configs
+│   │
+│   └── utils/
+│       ├── dependency-analyzer.ts   # Component dependency graph
+│       └── chart-renderer.ts        # ASCII chart generation
+│
+├── cli/commands/
+│   └── grade.ts                     # New 'grade' command handler
+│
+└── types/
+    └── grading.ts                   # TypeScript interfaces for grading
+```
+
+### **3.2 Data Structures**
+
+```typescript
+// Core grading result
+interface ComponentGrade {
+  componentName: string;
+  componentType: 'aura' | 'vf';
+  filePath: string;
+
+  // Overall grade
+  overallScore: number;        // 0-100
+  letterGrade: LetterGrade;    // A, B, C, D, F
+  complexity: ComplexityLevel; // Simple, Easy, Moderate, Complex, Very Complex
+
+  // Category breakdowns
+  categoryScores: {
+    componentMappings: CategoryScore;
+    dataBinding: CategoryScore;
+    // ... other categories
+  };
+
+  // Detailed factors
+  complexityFactors: ComplexityFactor[];
+
+  // Actionable insights
+  conversionEffort: EffortEstimate;
+  recommendations: string[];
+  warnings: string[];
+
+  // Metadata
+  gradedAt: Date;
+  gradedVersion: string;
+}
+
+interface CategoryScore {
+  score: number;           // 0-100
+  weight: number;          // Percentage weight
+  weightedScore: number;   // score * weight
+  factors: string[];       // What contributed to this score
+}
+
+interface ComplexityFactor {
+  category: string;
+  factor: string;
+  impact: 'high' | 'medium' | 'low';
+  description: string;
+  lineNumbers?: number[];  // Where in code this appears
+}
+
+interface EffortEstimate {
+  automatedPercentage: number;  // % that can be auto-converted
+  manualHours: {
+    min: number;
+    max: number;
+    estimate: number;
+  };
+  skillLevel: 'beginner' | 'intermediate' | 'expert';
+}
+
+// TUI-specific interfaces
+interface GradingTuiAnswers {
+  gradeType: 'aura' | 'vf' | 'both';
+  scope: 'project' | 'folder' | 'components' | 'manual';
+  selectedComponents?: string[];      // Paths to specific components
+  folderPath?: string;                // Path to folder if scope is 'folder'
+  manualPath?: string;                // Manual path entry
+  detailLevel: 'summary' | 'standard' | 'detailed';
+  sortBy: 'score-high' | 'score-low' | 'name' | 'path' | 'grade' | 'complexity';
+  filter: 'all' | 'a-b' | 'c' | 'd-f' | 'custom';
+  customFilter?: string;              // Custom filter expression
+  exportFormats: ('json' | 'csv' | 'html' | 'md' | 'console')[];
+  exportDir?: string;                 // Export directory if formats selected
+  advancedOptions?: {
+    includeLineNumbers: boolean;
+    includeEffortEstimation: boolean;
+    includeRecommendations: boolean;
+    compareWithHistory: boolean;
+    suggestSimilar: boolean;
+  };
+}
+
+interface GradingProgress {
+  total: number;
+  current: number;
+  currentComponent: string;
+  currentGrade?: ComponentGrade;
+  completed: ComponentGrade[];
+  errors: Array<{ component: string; error: string }>;
+}
+
+interface GradingSummary {
+  totalComponents: number;
+  averageScore: number;
+  averageGrade: LetterGrade;
+  distribution: Record<LetterGrade, number>;  // Count per grade
+  totalEffort: {
+    automatedPercentage: number;
+    manualHours: { min: number; max: number; estimate: number };
+  };
+  recommendations: string[];
+}
+
+// Advanced TUI feature interfaces
+interface SavedGradingConfiguration {
+  name: string;
+  description?: string;
+  gradeType: 'aura' | 'vf' | 'both';
+  detailLevel: 'summary' | 'standard' | 'detailed';
+  sortBy: string;
+  filter: string;
+  exportFormats: string[];
+  advancedOptions?: any;
+  createdAt: Date;
+  lastUsed?: Date;
+}
+
+interface ComponentComparison {
+  components: ComponentGrade[];
+  differences: Array<{
+    category: string;
+    values: number[];
+    maxDifference: number;
+  }>;
+  insights: string[];
+}
+
+interface ConversionPriorityQueue {
+  priorities: Array<{
+    level: number;
+    name: string;
+    components: Array<{
+      component: ComponentGrade;
+      dependencies: string[];
+      blockers: string[];
+    }>;
+    estimatedHours: { min: number; max: number };
+  }>;
+  totalEstimate: { min: number; max: number };
+  suggestedTimeline: string;
+}
+
+interface ComponentDependencyGraph {
+  nodes: Array<{
+    componentName: string;
+    grade: ComponentGrade;
+  }>;
+  edges: Array<{
+    from: string;
+    to: string;
+    type: 'uses' | 'extends' | 'implements';
+  }>;
+}
+
+interface WatchModeState {
+  active: boolean;
+  monitoredPaths: string[];
+  lastUpdate: Date;
+  changes: Array<{
+    component: string;
+    oldGrade: ComponentGrade;
+    newGrade: ComponentGrade;
+    timestamp: Date;
+  }>;
+}
+
+interface GradingSession {
+  id: string;
+  startedAt: Date;
+  lastUpdatedAt: Date;
+  progress: GradingProgress;
+  configuration: GradingTuiAnswers;
+  results?: ComponentGrade[];
+  canResume: boolean;
+}
+
+interface ProjectHealthMetrics {
+  overallHealth: number;
+  readinessBreakdown: {
+    ready: number;
+    needsAttention: number;
+    highComplexity: number;
+  };
+  effortDistribution: Record<string, number>;
+  riskFactors: Array<{
+    type: 'warning' | 'error' | 'info';
+    message: string;
+    affectedComponents: string[];
+  }>;
+  suggestedTimeline: {
+    sprints: number[];
+    totalWeeks: { min: number; max: number };
+  };
+}
+
+interface CustomGradingWeights {
+  componentMappings: number;
+  javascriptPatterns: number;
+  dataBinding: number;
+  lifecycleEvents: number;
+  dependencies: number;
+  styling: number;
+  presetName?: string;
+}
+```
+
+### **3.3 Grading Algorithm**
+
+```typescript
+// Pseudocode for grading process
+async function gradeComponent(path: string, type: 'aura' | 'vf'): Promise<ComponentGrade> {
+  // 1. Parse component
+  const parsed = await parseComponent(path, type);
+
+  // 2. Extract complexity metrics
+  const metrics = extractComplexityMetrics(parsed);
+
+  // 3. Score each category
+  const categoryScores = calculateCategoryScores(metrics, type);
+
+  // 4. Calculate weighted overall score
+  const overallScore = calculateWeightedScore(categoryScores);
+
+  // 5. Convert to letter grade
+  const letterGrade = scoreToLetterGrade(overallScore);
+
+  // 6. Identify complexity factors
+  const complexityFactors = identifyComplexityFactors(metrics);
+
+  // 7. Estimate conversion effort
+  const effort = estimateConversionEffort(overallScore, complexityFactors);
+
+  // 8. Generate recommendations
+  const recommendations = generateRecommendations(complexityFactors, effort);
+
+  return {
+    componentName: getComponentName(path),
+    componentType: type,
+    filePath: path,
+    overallScore,
+    letterGrade,
+    complexity: gradeToComplexity(letterGrade),
+    categoryScores,
+    complexityFactors,
+    conversionEffort: effort,
+    recommendations,
+    // ...
+  };
+}
+```
+
+---
+
+## 4. CLI Interface Design
+
+### **4.1 New Command Structure**
+
+```bash
+# Grade entire project (both Aura and VF)
+lwc-convert grade
+
+# Grade all Aura components
+lwc-convert grade --type aura
+
+# Grade all Visualforce pages
+lwc-convert grade --type vf
+
+# Grade specific component by name
+lwc-convert grade AccountCard --type aura
+
+# Grade specific file
+lwc-convert grade ./force-app/main/default/aura/AccountCard/AccountCard.cmp
+
+# Grade entire folder
+lwc-convert grade ./force-app/main/default/aura/
+
+# Output options
+lwc-convert grade --format json --output grades.json
+lwc-convert grade --format csv --output grades.csv
+lwc-convert grade --format html --output report.html
+lwc-convert grade --format md --output GRADING_REPORT.md
+
+# Sorting and filtering
+lwc-convert grade --sort-by score         # Sort by overall score
+lwc-convert grade --sort-by complexity    # Sort by complexity
+lwc-convert grade --filter "grade:D,F"    # Only show D and F grades
+lwc-convert grade --filter "score:<60"    # Only show scores below 60
+
+# Detailed output
+lwc-convert grade --detailed              # Show full breakdown
+lwc-convert grade --show-factors          # Show complexity factors
+lwc-convert grade --show-recommendations  # Show recommendations
+
+# Dry run
+lwc-convert grade --dry-run               # Preview what will be graded
+```
+
+### **4.2 Interactive Mode Integration**
+
+Add "Grade Components" option to the TUI menu:
+
+```
+? What would you like to do?
+  › Convert Aura component to LWC
+    Convert Visualforce page to LWC
+    Grade conversion complexity     ← NEW
+    View session report
+    Clean up session data
+```
+
+Then guide through:
+1. Component type selection (Aura/VF/Both)
+2. Scope selection (Project/Folder/Component)
+3. Output format selection
+4. Display results with option to export
+
+### **4.3 Detailed TUI Flow Design**
+
+The grading TUI will follow the same @clack/prompts pattern as the existing conversion flow, with wizard-style navigation and breadcrumbs.
+
+#### **Step Flow Overview**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Step 1: Grade Type → Step 2: Scope → Step 3: Options  │
+│      → Step 4: Preview → Step 5: Results & Actions     │
+└─────────────────────────────────────────────────────────┘
+```
+
+#### **Step 1: Grade Type Selection**
+
+**Breadcrumb:** `● Grade Type → Scope → Options → Preview → Results`
+
+```
+? What would you like to grade?
+  › ⚡ Aura Components
+    📄 Visualforce Pages
+    🔄 Both (Aura & VF)
+    ← Back to main menu
+```
+
+**Options:**
+- **Aura Components**: Grade only Aura bundles
+- **Visualforce Pages**: Grade only VF pages
+- **Both**: Comprehensive project assessment
+- **Back**: Return to main menu
+
+#### **Step 2: Scope Selection**
+
+**Breadcrumb:** `✓ Grade Type → ● Scope → Options → Preview → Results`
+
+**For Single Type (Aura or VF):**
+
+```
+? What would you like to grade?
+  › 📦 Entire project (scan all components)
+    📁 Specific folder
+    📝 Specific component (select from list)
+    ✏️  Enter path manually
+    ← Back
+```
+
+**Option A: Entire Project**
+- Automatically scans standard directories
+- Shows preview: "Found 24 Aura components" or "Found 18 VF pages"
+- Confirms before grading: "Grade all 24 components? (y/n)"
+
+**Option B: Specific Folder**
+```
+? Enter folder path to grade:
+  force-app/main/default/aura/
+
+  ✓ Found 8 components in this folder
+
+  ? Grade all components in this folder? (y/n)
+```
+
+**Option C: Specific Component (from list)**
+```
+? Select component(s) to grade: (Space to select, Enter to confirm)
+  [ ] ⚡ AccountCard         (force-app/main/default/aura/AccountCard)
+  [ ] ⚡ ContactList         (force-app/main/default/aura/ContactList)
+  [x] ⚡ OpportunityBoard    (force-app/main/default/aura/OpportunityBoard)
+  [ ] ⚡ CustomDashboard     (force-app/main/default/aura/CustomDashboard)
+  ...
+  [ ] Select all
+  [ ] ← Back
+```
+
+- Uses `p.multiselect` for multiple component selection
+- Shows component path as hint
+- "Select all" option for convenience
+- Can select one or many components
+
+**Option D: Enter Path Manually**
+```
+? Enter component/folder path:
+  ./custom/location/MyComponent
+
+  (Leave blank to go back)
+```
+
+**For Both Types:**
+```
+? Grade scope:
+  › 📦 Entire project (all Aura & VF)
+    📁 Specific folders (choose Aura and/or VF folders)
+    ← Back
+```
+
+If "Specific folders" selected:
+```
+? Select Aura folder to grade: (or skip)
+  > force-app/main/default/aura/
+    Skip Aura components
+
+? Select VF folder to grade: (or skip)
+  > force-app/main/default/pages/
+    Skip VF pages
+```
+
+#### **Step 3: Grading Options**
+
+**Breadcrumb:** `✓ Grade Type → ✓ Scope → ● Options → Preview → Results`
+
+```
+? Detail level:
+  › 📊 Summary (quick overview with scores)
+    📋 Standard (category breakdowns)
+    🔍 Detailed (full analysis with complexity factors)
+```
+
+**Detail Levels:**
+- **Summary**: Overall score, letter grade, effort estimate only
+- **Standard**: Adds category scores and basic recommendations
+- **Detailed**: Full breakdown with complexity factors, line numbers, detailed recommendations
+
+```
+? Sort results by:
+  › 📈 Score (highest first)
+    📉 Score (lowest first)
+    🔤 Name (alphabetical)
+    📁 Path (directory order)
+    🏷️  Grade (A → F)
+    ⚠️  Complexity (simple → complex)
+```
+
+```
+? Filter results: (optional)
+  All components
+  › Only grade A-B (simple/easy)
+    Only grade C (moderate)
+    Only grade D-F (complex/very complex)
+    Custom filter...
+```
+
+If "Custom filter" selected:
+```
+? Enter filter criteria:
+  Examples:
+    grade:D,F          (only D and F grades)
+    score:<60          (score less than 60)
+    score:80-100       (score between 80-100)
+
+  Enter filter (or leave blank for no filter):
+```
+
+```
+? Export options: (Space to select multiple)
+  [ ] 💾 JSON export
+  [ ] 📊 CSV export
+  [ ] 🌐 HTML report
+  [ ] 📝 Markdown report
+  [x] 🖥️  Console display only
+```
+
+If any export selected:
+```
+? Export directory:
+  ./grading-reports/
+```
+
+```
+? Advanced options: (optional)
+  › Continue with standard settings
+    Configure advanced options...
+```
+
+If "Configure advanced options" selected:
+```
+? Include in analysis: (Space to select)
+  [x] Complexity factors with line numbers
+  [x] Effort estimation
+  [x] Recommendations
+  [ ] Historical comparison (if available)
+  [ ] Similar component suggestions
+```
+
+#### **Step 4: Preview & Confirmation**
+
+**Breadcrumb:** `✓ Grade Type → ✓ Scope → ✓ Options → ● Preview → Results`
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ 📋 Grading Configuration Summary                        │
+├─────────────────────────────────────────────────────────┤
+│ Type:         ⚡ Aura Components                         │
+│ Scope:        📦 Entire project                         │
+│ Components:   24 components found                       │
+│ Detail:       🔍 Detailed                               │
+│ Sort:         📈 Score (highest first)                  │
+│ Filter:       All components                            │
+│ Export:       💾 JSON, 🌐 HTML                          │
+│ Output:       ./grading-reports/                        │
+└─────────────────────────────────────────────────────────┘
+
+? Proceed with grading? (Y/n)
+```
+
+Options:
+- **Yes**: Start grading
+- **No**: Return to options (Step 3)
+
+#### **Step 5: Grading Progress & Results**
+
+**Progress Spinner:**
+```
+◇ Grading components...
+│
+├─ ✓ AccountCard (1/24) - Score: 92 (A)
+├─ ✓ ContactList (2/24) - Score: 85 (B)
+├─ ⠋ OpportunityBoard (3/24)...
+│
+└─ Estimated time: 10 seconds remaining
+```
+
+**Results Display Options:**
+
+**Option 1: Summary Table (Default)**
+
+```
+┌────────────────────────┬──────┬───────┬───────┬──────────────┐
+│ Component              │ Type │ Score │ Grade │ Complexity   │
+├────────────────────────┼──────┼───────┼───────┼──────────────┤
+│ AccountCard            │ Aura │ 92    │ A     │ Simple       │
+│ ContactList            │ Aura │ 85    │ B     │ Easy         │
+│ OpportunityBoard       │ Aura │ 68    │ C     │ Moderate     │
+│ CustomDashboard        │ Aura │ 52    │ D     │ Complex      │
+│ LegacyIntegration      │ Aura │ 35    │ F     │ Very Complex │
+└────────────────────────┴──────┴───────┴───────┴──────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│ 📊 Summary Statistics                                   │
+├─────────────────────────────────────────────────────────┤
+│ Total components:      24                               │
+│ Average score:         73 (C - Moderate)                │
+│                                                          │
+│ Grade Distribution:                                     │
+│   A (Simple):          8 components (33%) ████████      │
+│   B (Easy):           10 components (42%) ██████████    │
+│   C (Moderate):        4 components (17%) ████          │
+│   D (Complex):         1 component  (4%)  █             │
+│   F (Very Complex):    1 component  (4%)  █             │
+│                                                          │
+│ Estimated Effort:                                       │
+│   Automated:          68% of conversion work            │
+│   Manual:             32% requiring developer attention │
+│   Time:               40-60 developer hours             │
+│   Skill:              Intermediate LWC knowledge        │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Option 2: Detailed Single Component View**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ Component: AccountCard                                  │
+│ Type: Aura Component                                    │
+│ Path: force-app/main/default/aura/AccountCard/          │
+├─────────────────────────────────────────────────────────┤
+│ OVERALL GRADE                                           │
+│                                                          │
+│   Score:      92/100                                    │
+│   Grade:      A                                         │
+│   Complexity: Simple - Highly automatable               │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────┬───────┬────────┬──────────────┐
+│ Category                │ Score │ Weight │ Contribution │
+├─────────────────────────┼───────┼────────┼──────────────┤
+│ Component Mappings      │ 98    │ 25%    │ 24.5         │
+│ JavaScript Patterns     │ 90    │ 25%    │ 22.5         │
+│ Data Binding            │ 95    │ 20%    │ 19.0         │
+│ Lifecycle & Events      │ 85    │ 15%    │ 12.8         │
+│ Dependencies            │ 90    │ 10%    │ 9.0          │
+│ Styling                 │ 100   │ 5%     │ 5.0          │
+└─────────────────────────┴───────┴────────┴──────────────┘
+
+🔍 Complexity Factors:
+  ✓ All components have direct LWC mappings
+  ✓ Simple controller with 3 methods
+  ✓ No complex expressions or formulas
+  ⚠ Uses one component event (Medium impact)
+    → AccountCardController.js:45
+  ✓ SLDS styling only, no custom CSS
+  ✓ Minimal dependencies
+
+⚡ Conversion Effort:
+  Automated:  95% of conversion work
+  Manual:     5% - event handling adjustment
+  Time:       0.5-1 hour for review
+  Skill:      Beginner-friendly
+
+💡 Recommendations:
+  1. ✅ Excellent candidate for full conversion
+  2. Review event handling pattern
+  3. Consider converting now for quick win
+```
+
+**Option 3: Interactive Component Browser**
+
+```
+? Select a component to view details:
+  > AccountCard           [A] 92  ████████████████████
+    ContactList          [B] 85  █████████████████
+    OpportunityBoard     [C] 68  █████████████
+    CustomDashboard      [D] 52  ██████████
+    LegacyIntegration    [F] 35  ███████
+
+    View all | Export results | Back to main menu
+```
+
+Selecting a component shows detailed view above.
+
+#### **Step 6: Post-Grading Actions**
+
+```
+? What would you like to do next?
+  › 🔍 View detailed breakdown for specific component
+    📊 View different component
+    💾 Export results
+    ⚡ Convert a component now
+    🔄 Grade more components
+    📈 View recommendations summary
+    🏠 Return to main menu
+    ✓ Done
+```
+
+**Action: View Detailed Breakdown**
+- Shows component selector
+- Displays detailed view for selected component
+- Returns to actions menu
+
+**Action: Export Results**
+```
+? Select export format:
+  [ ] 💾 JSON export
+  [ ] 📊 CSV export
+  [ ] 🌐 HTML report
+  [ ] 📝 Markdown report
+
+? Export to:
+  ./grading-reports/aura-components-2026-01-24.json
+
+  ✓ Exported successfully!
+
+? Open in default application? (Y/n)
+```
+
+**Action: Convert Component Now**
+```
+? Select component to convert:
+  > AccountCard [A] - Recommended (highest score)
+    ContactList [B] - Recommended
+    OpportunityBoard [C]
+    ...
+
+? Conversion mode:
+  › ⚡ Full conversion (recommended for Grade A-B)
+    📝 Scaffolding
+
+  ⚡ Starting conversion of AccountCard...
+```
+
+Seamlessly transitions to existing conversion flow.
+
+**Action: Recommendations Summary**
+```
+┌─────────────────────────────────────────────────────────┐
+│ 💡 Conversion Strategy Recommendations                  │
+├─────────────────────────────────────────────────────────┤
+│ Quick Wins (Grade A-B):                                 │
+│   • AccountCard, ContactList, SimpleForm                │
+│   • Estimated: 3-5 hours total                          │
+│   • Recommendation: Convert first for confidence        │
+│                                                          │
+│ Moderate Effort (Grade C):                              │
+│   • OpportunityBoard, DashboardWidget                   │
+│   • Estimated: 8-12 hours total                         │
+│   • Recommendation: Convert after quick wins            │
+│                                                          │
+│ Complex (Grade D-F):                                    │
+│   • CustomDashboard, LegacyIntegration                  │
+│   • Estimated: 20-30 hours total                        │
+│   • Recommendation: Consider refactoring first          │
+│                                                          │
+│ Overall Strategy:                                       │
+│   1. Start with Grade A components (8 total)            │
+│   2. Build team expertise with Grade B (10 total)       │
+│   3. Tackle Grade C with learned patterns               │
+│   4. Refactor/redesign Grade D-F before converting      │
+│                                                          │
+│ Potential Blockers:                                     │
+│   ⚠ 3 components use deprecated ui:* components         │
+│   ⚠ 2 components have complex $A.createComponent usage  │
+│   ⚠ 1 component requires custom event migration         │
+└─────────────────────────────────────────────────────────┘
+
+? Export this strategy as markdown? (y/N)
+```
+
+#### **Visual Enhancements**
+
+**Color Coding:**
+```typescript
+// Grade-based colors
+const gradeColors = {
+  A: color.green,      // Green for simple
+  B: color.cyan,       // Cyan for easy
+  C: color.yellow,     // Yellow for moderate
+  D: color.magenta,    // Magenta for complex
+  F: color.red,        // Red for very complex
+};
+
+// Score-based progress bars
+const scoreBar = (score: number) => {
+  const filled = Math.floor(score / 5);
+  const empty = 20 - filled;
+  return color.cyan('█'.repeat(filled)) + color.dim('░'.repeat(empty));
+};
+```
+
+**Icons:**
+- ⚡ Aura component
+- 📄 Visualforce page
+- ✓ Success/completed
+- ⚠ Warning/attention needed
+- ❌ Error/blocker
+- 🔍 Detailed view
+- 📊 Statistics
+- 💡 Recommendation
+- 🎯 Priority action
+- ⏱️ Time estimate
+
+#### **Navigation Features**
+
+**Keyboard Shortcuts (displayed in help):**
+- `↑/↓` - Navigate options
+- `Space` - Select/deselect (multiselect)
+- `Enter` - Confirm selection
+- `←` - Back to previous step
+- `Ctrl+C` - Cancel operation
+- `?` - Show help
+
+**Breadcrumb Navigation:**
+- Always shows current position
+- Completed steps marked with ✓
+- Current step marked with ●
+- Future steps dimmed
+- Allows navigation back to any step
+
+**Back Button:**
+- Every step includes "← Back" option
+- Returns to previous step without losing data
+- Confirms before discarding significant work
+
+#### **Error Handling**
+
+**No Components Found:**
+```
+⚠ No Aura components found in project
+
+? What would you like to do?
+  › 📝 Enter path manually
+    📁 Search in different directory
+    ← Back to grade type selection
+```
+
+**Invalid Path:**
+```
+✗ Path not found: ./invalid/path
+
+? Would you like to:
+  › ✏️ Try a different path
+    🔍 Search for components
+    ← Back
+```
+
+**Grading Error:**
+```
+✗ Error grading component: CustomComponent
+  Reason: Missing required file (CustomComponent.cmp)
+
+? Continue grading remaining components? (Y/n)
+```
+
+#### **Performance Optimization**
+
+**Parallel Grading:**
+```
+◇ Grading 24 components in parallel...
+│
+├─ ⠋ Processing batch 1/3 (8 components)...
+│  ├─ ✓ AccountCard
+│  ├─ ✓ ContactList
+│  └─ ⠋ OpportunityBoard...
+│
+└─ Estimated: 8 seconds remaining
+```
+
+**Caching:**
+```
+ℹ Found cached grades from 10 minutes ago
+
+? Use cached results? (Y/n)
+  › Yes, use cache (instant results)
+    No, re-grade all components
+    Use cache and re-grade changed components only
+```
+
+#### **Comparison with Previous Grades**
+
+```
+? Compare with previous grading? (y/N)
+
+If yes:
+┌──────────────────────┬─────────┬───────┬────────┐
+│ Component            │ Before  │ Now   │ Change │
+├──────────────────────┼─────────┼───────┼────────┤
+│ AccountCard          │ 88 (B)  │ 92 (A)│ +4 ↑   │
+│ CustomDashboard      │ 52 (D)  │ 58 (D)│ +6 ↑   │
+│ LegacyIntegration    │ 35 (F)  │ 35 (F)│ --     │
+└──────────────────────┴─────────┴───────┴────────┘
+
+💡 Improvements detected in 2 components
+⚠ 1 component still needs significant work
+```
+
+#### **Advanced TUI Features**
+
+Beyond the core grading flow, the TUI includes advanced features for power users and team workflows.
+
+##### **1. Component Search & Live Filtering**
+
+When selecting components, users can search/filter in real-time:
+
+```
+? Select component(s) to grade: (Space to select, Enter to confirm)
+
+  🔍 Search: card                    (type to filter)
+
+  Showing 3 of 24 components:
+  [ ] ⚡ AccountCard         (force-app/main/default/aura/AccountCard)
+  [ ] ⚡ ContactCard         (force-app/main/default/aura/ContactCard)
+  [ ] ⚡ OpportunityCard     (force-app/main/default/aura/OpportunityCard)
+
+  [ ] Select all visible
+  [ ] Clear search
+  [ ] ← Back
+```
+
+**Features:**
+- Live filtering as you type
+- Fuzzy matching support
+- Shows count of filtered vs total
+- "Select all visible" for bulk selection
+
+##### **2. Component Comparison View**
+
+Compare multiple components side-by-side:
+
+```
+? Select 2-4 components to compare:
+  [x] AccountCard
+  [x] ContactList
+  [ ] OpportunityBoard
+  [ ] CustomDashboard
+
+┌────────────────────┬──────────────┬──────────────┐
+│ Metric             │ AccountCard  │ ContactList  │
+├────────────────────┼──────────────┼──────────────┤
+│ Overall Score      │ 92 (A)       │ 85 (B)       │
+│ Comp. Mappings     │ 98           │ 90           │
+│ JavaScript         │ 90           │ 85           │
+│ Data Binding       │ 95           │ 88           │
+│ Lifecycle & Events │ 85           │ 75           │
+│ Dependencies       │ 90           │ 80           │
+│ Styling            │ 100          │ 95           │
+├────────────────────┼──────────────┼──────────────┤
+│ Automated %        │ 95%          │ 85%          │
+│ Effort (hours)     │ 0.5-1        │ 1-2          │
+│ Recommendation     │ ✅ Convert    │ ✅ Convert   │
+└────────────────────┴──────────────┴──────────────┘
+
+💡 Key Differences:
+  • AccountCard has better component mappings (+8)
+  • AccountCard has simpler lifecycle hooks (+10)
+  • Both are good conversion candidates
+
+? What would you like to do?
+  › Compare different components
+    View detailed breakdown
+    Convert both components
+    Back to results
+```
+
+##### **3. Saved Grading Configurations**
+
+Save and reuse common grading configurations:
+
+```
+? Grading configuration:
+  › 📋 Use saved configuration
+    ⚙️  Configure manually
+    ← Back
+
+# If "Use saved configuration" selected:
+
+? Select a saved configuration:
+  › 🏆 Quick Assessment (Summary, All components, Console only)
+    📊 Full Analysis (Detailed, All components, All export formats)
+    🎯 Problem Components (Detailed, Grade D-F only, HTML report)
+    ⚡ Conversion Ready (Standard, Grade A-B only, JSON export)
+    ➕ Create new configuration
+    🗑️  Manage saved configurations
+
+# After grading:
+
+? Save this configuration for reuse? (y/N)
+
+  ? Configuration name:
+    Quick Aura Assessment
+
+  ✓ Configuration saved! Use it next time with quick access.
+```
+
+**Default Configurations:**
+- **Quick Assessment**: Fast overview for project health check
+- **Full Analysis**: Comprehensive deep-dive with all details
+- **Problem Components**: Focus on components needing work
+- **Conversion Ready**: Identify components ready to convert
+
+##### **4. Batch Operations - Grade & Convert Pipeline**
+
+Chain grading and conversion into a single workflow:
+
+```
+? What would you like to do next?
+  › ⚡ Start conversion pipeline
+    🔍 View detailed breakdown
+    💾 Export results
+    🏠 Return to main menu
+
+# If "Start conversion pipeline" selected:
+
+🔄 Conversion Pipeline Setup
+
+You've graded 24 components. Let's set up an automated conversion pipeline.
+
+? Select conversion strategy:
+  › 🎯 Convert high-grade components first (A-B)
+    📊 Convert by priority order (manual selection)
+    🔄 Convert all components in sequence
+    ← Back
+
+# If "Convert high-grade components first" selected:
+
+Found 18 components with grade A-B:
+
+? Select components to include in pipeline: (Space to select)
+  [x] AccountCard [A]
+  [x] ContactList [B]
+  [x] SimpleForm [A]
+  [x] DataTable [B]
+  ... (14 more)
+
+  [x] Select all
+
+? Conversion mode for all:
+  › ⚡ Full conversion (recommended for A-B grades)
+    📝 Scaffolding
+    🔀 Mixed (ask for each component)
+
+? Pipeline execution:
+  › 🚀 Run all now (sequential)
+    ⏸️  Run one-by-one with confirmation
+    💾 Save pipeline for later execution
+
+# If "Run all now" selected:
+
+◇ Conversion Pipeline (1/18)
+│
+├─ 📊 Grading: AccountCard [A] 92
+├─ ⚡ Converting: AccountCard
+│  ├─ ✓ Generated JS (accountCard.js)
+│  ├─ ✓ Generated HTML (accountCard.html)
+│  ├─ ✓ Generated meta.xml
+│  └─ ✓ Generated tests
+├─ ✓ AccountCard converted successfully
+│
+├─ 📊 Grading: ContactList [B] 85
+├─ ⚡ Converting: ContactList
+│  ├─ ⠋ Generating JS...
+│
+└─ Estimated time: 8 minutes remaining
+
+Pipeline Summary:
+  ✓ Completed: 1/18
+  ⚙️  In Progress: 1/18
+  ⏳ Pending: 16/18
+  ❌ Failed: 0/18
+```
+
+##### **5. Component Grouping & Organization**
+
+View graded components organized by different criteria:
+
+```
+? How would you like to view results?
+  › 📊 Flat list (default)
+    📁 Group by folder
+    🏷️  Group by grade
+    ⚠️  Group by complexity
+    📦 Group by component type
+
+# If "Group by grade" selected:
+
+📊 Grading Results - Grouped by Grade
+
+┌─ Grade A (Simple) - 8 components ────────────────────┐
+│ ⚡ AccountCard              92    Simple              │
+│ ⚡ SimpleForm               91    Simple              │
+│ ⚡ DataDisplay              90    Simple              │
+│ ... (5 more)                                          │
+│ 📈 Average: 91 | Effort: 4-6 hours total             │
+└───────────────────────────────────────────────────────┘
+
+┌─ Grade B (Easy) - 10 components ──────────────────────┐
+│ ⚡ ContactList              85    Easy                 │
+│ ⚡ AccountForm              84    Easy                 │
+│ ⚡ SearchBar                82    Easy                 │
+│ ... (7 more)                                          │
+│ 📈 Average: 82 | Effort: 10-15 hours total           │
+└───────────────────────────────────────────────────────┘
+
+┌─ Grade C (Moderate) - 4 components ───────────────────┐
+│ ⚡ OpportunityBoard         68    Moderate             │
+│ ⚡ DashboardWidget          65    Moderate             │
+│ ⚡ ReportViewer             63    Moderate             │
+│ ⚡ ChartComponent           61    Moderate             │
+│ 📈 Average: 64 | Effort: 16-24 hours total           │
+└───────────────────────────────────────────────────────┘
+
+? Expand a group to see details:
+  › Grade A (8 components)
+    Grade B (10 components)
+    Grade C (4 components)
+    View ungrouped
+```
+
+##### **6. Interactive Complexity Trend Visualization**
+
+ASCII-based visual representation of component complexity:
+
+```
+📈 Complexity Distribution
+
+Score Distribution (24 components):
+100 │
+ 90 │ ██████████                             A (8)
+ 80 │ ████████████████                       B (10)
+ 70 │ █████                                  C (4)
+ 60 │ ██                                     D (1)
+ 50 │
+ 40 │ █                                      F (1)
+ 30 │
+    └─────────────────────────────────────
+      A    B    C    D    F
+
+Category Strengths (Average across all components):
+Component Mappings  ████████████████░░░░ 82
+JavaScript Patterns ██████████████░░░░░░ 74
+Data Binding        ███████████████░░░░░ 77
+Lifecycle & Events  ████████████░░░░░░░░ 65
+Dependencies        ██████████████░░░░░░ 72
+Styling             ████████████████████ 95
+
+💡 Insights:
+  • Styling is the strongest area (95 avg)
+  • Lifecycle & Events need most attention (65 avg)
+  • 75% of components are grade B or better
+```
+
+##### **7. Conversion Priority Queue**
+
+Build an intelligent conversion queue based on grades and dependencies:
+
+```
+? Build conversion priority queue? (Y/n)
+
+Analyzing component dependencies...
+✓ Dependency graph built
+
+🎯 Recommended Conversion Order:
+
+Priority 1 - Foundation Components (No dependencies):
+  1. ⚡ SimpleForm [A] 91
+  2. ⚡ DataDisplay [A] 90
+  3. ⚡ SearchBar [B] 82
+
+Priority 2 - Low-dependency Components:
+  4. ⚡ AccountCard [A] 92 (depends on: SimpleForm)
+  5. ⚡ ContactList [B] 85 (depends on: DataDisplay)
+
+Priority 3 - Medium-complexity Components:
+  6. ⚡ OpportunityBoard [C] 68 (depends on: AccountCard, SearchBar)
+  7. ⚡ DashboardWidget [C] 65 (depends on: DataDisplay)
+
+Priority 4 - Complex Components (Convert last):
+  8. ⚡ CustomDashboard [D] 52 (depends on: 3 components)
+  9. ⚡ LegacyIntegration [F] 35 (depends on: 5 components)
+
+📊 Queue Statistics:
+  Total components: 24
+  Estimated time: 40-60 hours
+  Suggested timeline: 2-3 sprints
+
+? Actions:
+  › 💾 Export queue as roadmap (MD/JSON)
+    ⚡ Start converting queue in order
+    ✏️  Customize queue order
+    📋 View dependency graph
+    ← Back to results
+```
+
+##### **8. Quick Actions & Keyboard Shortcuts**
+
+Context-sensitive quick actions available throughout the TUI:
+
+```
+┌─────────────────────────────────────────────────────┐
+│ Quick Actions (Press key to execute)                │
+├─────────────────────────────────────────────────────┤
+│ [E] Export current view                             │
+│ [C] Compare selected components                     │
+│ [D] View detailed breakdown                         │
+│ [F] Apply filter                                    │
+│ [S] Change sort order                               │
+│ [G] Go to component (search)                        │
+│ [R] Refresh grades (re-scan)                        │
+│ [H] Show help                                       │
+│ [Q] Quit to main menu                               │
+│ [?] Toggle quick actions                            │
+└─────────────────────────────────────────────────────┘
+
+Currently viewing: 24 components | Average: 73 (C)
+Press [?] to show/hide quick actions
+```
+
+##### **9. Live Watch Mode**
+
+Continuously monitor and re-grade components as they change:
+
+```
+? Enable watch mode? (y/N)
+
+If yes:
+
+🔍 Watch Mode Active
+
+Monitoring:
+  • force-app/main/default/aura/
+  • force-app/main/default/pages/
+
+┌─────────────────────────────────────────────────────┐
+│ Component Status (Last updated: 2s ago)             │
+├─────────────────────────────────────────────────────┤
+│ ⚡ AccountCard         92 (A)  ✓ No changes         │
+│ ⚡ ContactList         85 (B)  🔄 Modified          │
+│ ⚡ OpportunityBoard    68 (C)  ✓ No changes         │
+└─────────────────────────────────────────────────────┘
+
+🔄 Detected change: ContactList.js
+   Re-grading ContactList...
+
+   ✓ Grade updated: 85 (B) → 88 (B)
+   📈 +3 points
+   💡 JavaScript patterns improved
+
+? Actions:
+  › Continue watching
+    View change details
+    Pause watch mode
+    Exit watch mode
+
+[Ctrl+C to exit]
+```
+
+**Watch Mode Features:**
+- Auto-detect file changes
+- Re-grade only changed components
+- Show diff in grades
+- Configurable polling interval
+- File system events (when available)
+
+##### **10. Team Collaboration Features**
+
+Share grading results with team members:
+
+```
+? Share grading results:
+  › 📧 Generate shareable report
+    💬 Export for Slack/Teams
+    🔗 Generate shareable link
+    📊 Export for JIRA/Linear
+    ← Back
+
+# If "Generate shareable report" selected:
+
+? Select report format:
+  › 📝 Markdown (for README/Wiki)
+    📊 HTML (standalone)
+    📈 PDF (requires pandoc)
+    💾 JSON (for API/automation)
+
+? Include in report:
+  [x] Summary statistics
+  [x] Grade distribution chart
+  [x] Component breakdown table
+  [x] Recommendations
+  [x] Conversion priority queue
+  [ ] Full category scores
+  [ ] Complexity factors
+
+? Report audience:
+  › 👥 Development team (technical)
+    👔 Management (executive summary)
+    🎓 Both (comprehensive)
+
+Generating report...
+✓ Report saved: grading-report-2026-01-24.md
+
+📧 Email Template:
+
+  Subject: LWC Conversion Assessment - 24 Components Analyzed
+
+  Hi team,
+
+  I've completed a conversion complexity assessment of our Aura
+  components. Here are the highlights:
+
+  • Total Components: 24
+  • Average Grade: C (Moderate)
+  • Quick Wins: 8 components (Grade A)
+  • Estimated Effort: 40-60 hours
+
+  Full report attached. Let's discuss conversion priorities in
+  our next planning meeting.
+
+  [View Full Report](./grading-report-2026-01-24.md)
+
+? Copy email template to clipboard? (Y/n)
+```
+
+##### **11. Drill-Down Navigation**
+
+Click into any category to see detailed breakdown:
+
+```
+📊 OpportunityBoard - Score: 68 (C)
+
+┌─────────────────────────┬───────┬────────┬──────────────┐
+│ Category                │ Score │ Weight │ Contribution │
+├─────────────────────────┼───────┼────────┼──────────────┤
+│ Component Mappings      │ 75    │ 25%    │ 18.8         │  ← Select to drill down
+│ JavaScript Patterns     │ 65    │ 25%    │ 16.3         │
+│ Data Binding            │ 70    │ 20%    │ 14.0         │
+│ Lifecycle & Events      │ 60    │ 15%    │ 9.0          │
+│ Dependencies            │ 65    │ 10%    │ 6.5          │
+│ Styling                 │ 80    │ 5%     │ 4.0          │
+└─────────────────────────┴───────┴────────┴──────────────┘
+
+? Select category for detailed breakdown:
+  › Component Mappings (75)
+    JavaScript Patterns (65)
+    Data Binding (70)
+    ...
+    Back to overview
+
+# If "Component Mappings" selected:
+
+🔍 Component Mappings - Detailed Breakdown
+Score: 75/100 (Good mapping with some complexity)
+
+Components Used:
+  ✓ <lightning:card>              100  Direct mapping
+  ✓ <lightning:button>            100  Direct mapping
+  ⚠ <ui:inputSelect>               70  Requires adaptation → lightning-combobox
+  ⚠ <aura:iteration>               80  Maps to for:each
+  ❌ <c:customPicker>               30  Custom component (no mapping)
+
+Average: 75
+
+💡 Recommendations:
+  1. Replace ui:inputSelect with lightning-combobox
+  2. Review custom c:customPicker component separately
+  3. Test aura:iteration → for:each conversion thoroughly
+
+📍 Found in code:
+  • OpportunityBoard.cmp:12 (ui:inputSelect)
+  • OpportunityBoard.cmp:24 (c:customPicker)
+  • OpportunityBoard.cmp:35 (aura:iteration)
+
+? Actions:
+  › View source code
+    See conversion examples
+    Grade custom component
+    Back to category list
+```
+
+##### **12. Progress Saving & Resume**
+
+Save progress and resume later if interrupted:
+
+```
+# During grading:
+◇ Grading components (15/24)...
+│
+├─ ✓ AccountCard (15/24) - Score: 92 (A)
+├─ Ctrl+C pressed
+│
+
+⚠ Grading interrupted
+
+? What would you like to do?
+  › 💾 Save progress and exit
+    🔄 Continue grading
+    ❌ Discard progress and exit
+
+# If "Save progress and exit" selected:
+
+✓ Progress saved
+
+Next time you run grading, you can resume from component 16/24.
+
+# Next session:
+
+? Resume previous grading session? (Y/n)
+
+  Session found:
+    Date: 2026-01-24 14:30
+    Progress: 15/24 components
+    Type: Aura Components
+
+  Resume from component 16/24?
+
+# If Yes:
+
+◇ Resuming grading (16/24)...
+│
+├─ ⏭️  Skipping 15 already graded components
+├─ ⚡ OpportunityBoard (16/24)...
+```
+
+##### **13. Component Health Dashboard**
+
+Holistic view of project health:
+
+```
+🏥 Project Health Dashboard
+
+┌─────────────────────────────────────────────────────┐
+│ Overall Health: 73/100 (C - Moderate)               │
+│ Status: 🟡 Ready for conversion with planning       │
+└─────────────────────────────────────────────────────┘
+
+📊 Conversion Readiness:
+  🟢 Ready to Convert:    18 components (75%)
+  🟡 Needs Attention:      4 components (17%)
+  🔴 High Complexity:      2 components (8%)
+
+⚡ Effort Distribution:
+  Quick Wins (<2 hrs):    8 components
+  Standard (2-5 hrs):    10 components
+  Complex (5-10 hrs):     4 components
+  Very Complex (>10 hrs): 2 components
+
+🎯 Risk Factors:
+  ⚠ 3 components use deprecated ui:* tags
+  ⚠ 2 components have complex $A.createComponent usage
+  ⚠ 1 component has high cyclomatic complexity
+  ✓ All components have LWC-compatible data patterns
+  ✓ No critical blockers detected
+
+📅 Suggested Timeline:
+  Sprint 1: Convert Grade A components (8)
+  Sprint 2: Convert Grade B components (10)
+  Sprint 3: Convert Grade C components (4)
+  Sprint 4: Refactor & convert Grade D-F (2)
+
+  Total Duration: 4-6 sprints (8-12 weeks)
+
+? Export dashboard as presentation? (Y/n)
+```
+
+##### **14. Custom Grading Weights**
+
+Allow users to customize category weights based on their priorities:
+
+```
+? Advanced options:
+  › Continue with standard settings
+    Configure advanced options...
+
+# If "Configure advanced options" selected:
+
+⚙️ Advanced Grading Configuration
+
+? Customize category weights?
+  › Use default weights
+    Customize for my project
+
+# If "Customize for my project" selected:
+
+Adjust category importance (must total 100%):
+
+Component Mappings:   [████████████░░░░░░░░] 25%  ◀▶ adjust
+JavaScript Patterns:  [████████████░░░░░░░░] 25%  ◀▶ adjust
+Data Binding:         [████████░░░░░░░░░░░░] 20%  ◀▶ adjust
+Lifecycle & Events:   [██████░░░░░░░░░░░░░░] 15%  ◀▶ adjust
+Dependencies:         [████░░░░░░░░░░░░░░░░] 10%  ◀▶ adjust
+Styling:              [██░░░░░░░░░░░░░░░░░░]  5%  ◀▶ adjust
+
+Total: 100% ✓
+
+? Save as preset?
+  › Backend-Heavy Project (Emphasize JS & Data)
+    UI-Focused Project (Emphasize Components & Styling)
+    Enterprise Project (Emphasize Dependencies & Events)
+    Don't save
+```
+
+---
+
+## 5. Grading Criteria Details
+
+### **5.1 Aura Component Grading**
+
+#### **Component Mappings (25% weight)**
+
+| Pattern | Score | Example |
+|---------|-------|---------|
+| Direct LWC equivalent | 100 | `<lightning:button>` → `<lightning-button>` |
+| Good mapping exists | 85-95 | `<aura:if>` → `<template if:true>` |
+| Requires adaptation | 60-75 | `<ui:inputSelect>` → `<lightning-combobox>` |
+| Complex conversion | 40-55 | `<force:recordData>` → `@wire(getRecord)` |
+| No direct mapping | 0-35 | Custom `c:*` components, deprecated `ui:*` |
+
+**Complexity Factors:**
+- Number of unmapped components
+- Number of deprecated components (ui:*)
+- Number of custom child components (c:*)
+- Use of facets/slots
+
+#### **JavaScript Patterns (25% weight)**
+
+| Pattern | Score | Example |
+|---------|-------|---------|
+| Simple property access | 100 | `component.get('v.name')` |
+| Helper functions | 90 | Stateless utility functions |
+| Server calls (simple) | 80 | `action.setCallback(this, function(response) {...})` |
+| Complex state management | 50-70 | Multiple dependent attributes |
+| $A.util/global scope | 40-60 | `$A.util.addClass()`, `$A.get('$Label.c.x')` |
+| Dynamic component creation | 20-40 | `$A.createComponent()` |
+| Eval/dynamic code | 0-20 | `eval()`, `$A.getCallback()` |
+
+**Complexity Factors:**
+- Number of controller methods
+- Cyclomatic complexity of methods
+- Use of $A namespace methods
+- Use of helper functions
+- Async patterns (promises, callbacks)
+- Error handling patterns
+
+#### **Data Binding (20% weight)**
+
+| Pattern | Score | Example |
+|---------|-------|---------|
+| Simple attributes | 100 | `{!v.title}` |
+| Object navigation | 90 | `{!v.record.Name}` |
+| Expressions (simple) | 80 | `{!v.isActive ? 'Active' : 'Inactive'}` |
+| Expressions (complex) | 50-70 | Nested ternaries, multiple operations |
+| Two-way data binding | 60 | `<ui:inputText value="{!v.text}"/>` |
+| Dynamic expressions | 30-50 | `{!v[dynamicAttribute]}` |
+
+**Complexity Factors:**
+- Number of attributes
+- Number of two-way bindings
+- Expression complexity
+- Dynamic attribute access
+
+#### **Lifecycle & Events (15% weight)**
+
+| Pattern | Score | Example |
+|---------|-------|---------|
+| Standard lifecycle hooks | 90 | `init`, `render` |
+| Simple event handlers | 85 | `onclick="{!c.handleClick}"` |
+| Component events | 70 | `<aura:registerEvent name="evt" type="c:MyEvent"/>` |
+| Application events | 60 | `$A.get("e.force:navigateToURL")` |
+| Custom events (complex) | 40-55 | Multiple event chains |
+| Lightning Message Service | 50 | Will need LMS implementation |
+
+**Complexity Factors:**
+- Number of custom events
+- Event propagation complexity
+- Use of platform events
+- Navigation patterns
+
+#### **Dependencies (10% weight)**
+
+| Pattern | Score | Example |
+|---------|-------|---------|
+| No dependencies | 100 | Standalone component |
+| Lightning base components only | 90 | `lightning:*` |
+| Force components | 75 | `force:recordData`, `force:navigateToURL` |
+| Custom components (simple) | 60 | `<c:SimpleChild>` |
+| Custom components (complex) | 30-50 | Deep component trees |
+| Third-party libraries | 20-40 | External JS libraries |
+
+**Complexity Factors:**
+- Number of dependencies
+- Depth of dependency tree
+- Third-party library usage
+- SLDS version dependencies
+
+#### **Styling (5% weight)**
+
+| Pattern | Score | Example |
+|---------|-------|---------|
+| SLDS classes only | 100 | `class="slds-button"` |
+| Simple CSS | 90 | Basic selectors, no preprocessing |
+| Tokens | 80 | Aura design tokens |
+| Complex selectors | 60-75 | Descendant selectors, pseudo-elements |
+| Aura-specific CSS | 40-55 | `.THIS`, `.THIS .childClass` |
+
+**Complexity Factors:**
+- Lines of CSS
+- Use of Aura-specific features
+- Use of design tokens
+- CSS complexity metrics
+
+---
+
+### **5.2 Visualforce Page Grading**
+
+#### **Component Mappings (25% weight)**
+
+| Pattern | Score | Example |
+|---------|-------|---------|
+| Direct mapping | 100 | `<apex:outputText>` → property binding |
+| Good mapping | 85-95 | `<apex:inputText>` → `<lightning-input>` |
+| Requires adaptation | 60-80 | `<apex:pageBlock>` → `<lightning-card>` |
+| Complex conversion | 40-55 | `<apex:actionFunction>` → imperative Apex |
+| No mapping | 0-35 | `<apex:flash>`, deprecated components |
+
+**Complexity Factors:**
+- Number of unmapped components
+- Use of deprecated components
+- Custom VF components
+- Number of action components
+
+#### **Apex Integration (30% weight)**
+
+| Pattern | Score | Example |
+|---------|-------|---------|
+| No Apex needed | 100 | Static content |
+| Simple properties | 90 | Basic getter/setter |
+| `@AuraEnabled` methods | 85 | Ready for LWC |
+| Standard controller | 75 | Can use `@wire(getRecord)` |
+| Extensions | 60-70 | Need refactoring to `@AuraEnabled` |
+| `@RemoteAction` | 50-65 | Need conversion to `@AuraEnabled` |
+| ViewState dependencies | 30-45 | Complex state management |
+| SOQL in VF expressions | 20-40 | Dynamic SOQL queries |
+
+**Complexity Factors:**
+- Number of Apex methods
+- Apex method complexity
+- Use of ViewState
+- DML operations
+- SOQL query complexity
+- Number of extensions
+
+#### **Data Binding (20% weight)**
+
+| Pattern | Score | Example |
+|---------|-------|---------|
+| Simple properties | 100 | `{!accountName}` |
+| Object fields | 90 | `{!account.Name}` |
+| Global variables (simple) | 80 | `{!$User.FirstName}`, `{!$Label.c.x}` |
+| Formulas (simple) | 70 | `{!IF(isActive, 'Yes', 'No')}` |
+| Formulas (complex) | 40-60 | Nested formulas, multiple functions |
+| Dynamic bindings | 30-50 | `{!myMap[dynamicKey]}` |
+
+**Complexity Factors:**
+- Number of expressions
+- Formula complexity
+- Global variable usage
+- Dynamic binding patterns
+
+#### **Page Structure (10% weight)**
+
+| Pattern | Score | Example |
+|---------|-------|---------|
+| Simple layout | 100 | Single section, linear flow |
+| Sections and blocks | 85 | `<apex:pageBlock>` structure |
+| Tabs/accordions | 70 | `<apex:tab>`, `<apex:outputPanel>` |
+| Conditional rendering | 60-75 | `rendered="{!condition}"` |
+| Complex layouts | 40-55 | Deeply nested structure |
+| Dynamic rendering | 30-45 | `reRender` attributes |
+
+**Complexity Factors:**
+- Nesting depth
+- Number of conditional sections
+- Number of rerender targets
+- Layout complexity
+
+#### **JavaScript (10% weight)**
+
+| Pattern | Score | Example |
+|---------|-------|---------|
+| No JavaScript | 100 | Pure VF/Apex |
+| Simple inline JS | 85 | Basic `onclick` handlers |
+| RemoteAction (simple) | 70 | Single remote call |
+| RemoteAction (complex) | 45-60 | Multiple chained calls |
+| jQuery/libraries | 30-50 | Third-party libraries |
+| Complex DOM manipulation | 20-40 | Heavy JS logic |
+
+**Complexity Factors:**
+- Lines of JavaScript
+- Use of remote actions
+- Third-party libraries
+- DOM manipulation patterns
+
+#### **Special Features (5% weight)**
+
+| Pattern | Score | Example |
+|---------|-------|---------|
+| No special features | 100 | Standard components only |
+| Standard styling | 90 | Basic CSS |
+| Custom styling | 75 | Custom CSS |
+| PDF rendering | 40 | `renderAs="pdf"` |
+| Charts/graphs | 50 | `<apex:chart>` |
+| Custom components | 30-60 | Custom VF components |
+
+**Complexity Factors:**
+- PDF generation
+- Chart usage
+- Email functionality
+- File upload/download
+
+---
+
+## 6. Implementation Phases
+
+### **Phase 1: Core Grading Engine (Week 1-2)**
+- [ ] Create grading type definitions (`types/grading.ts`)
+- [ ] Implement grade calculator (`grading/grade-calculator.ts`)
+- [ ] Implement complexity metrics extraction (`grading/complexity-metrics.ts`)
+- [ ] Implement Aura grader (`grading/aura-grader.ts`)
+  - Reuse existing parsers
+  - Add category-specific scoring
+  - Extract complexity factors
+- [ ] Implement VF grader (`grading/vf-grader.ts`)
+  - Extend existing confidence scorer
+  - Add missing categories
+  - Extract complexity factors
+- [ ] Implement main grading orchestrator (`grading/grader.ts`)
+- [ ] Unit tests for grading logic
+
+### **Phase 2: CLI & TUI Integration (Week 2-3)**
+- [ ] Create `grade` command (`cli/commands/grade.ts`)
+- [ ] Add command-line options
+  - Type selection (--type aura|vf)
+  - Scope selection (project/folder/component)
+  - Output format (--format json|csv|html|md)
+  - Filtering (--filter)
+  - Sorting (--sort-by)
+- [ ] Implement component discovery for grading
+  - Scan project directories
+  - Handle specific files/folders
+- [ ] Implement interactive grading TUI (`grading/grading-tui.ts`)
+  - Grade type selection step
+  - Scope selection step with component discovery
+  - Options configuration step (detail level, sorting, filtering)
+  - Preview/confirmation step
+  - Progress display with spinner
+  - Results display with multiple view options
+  - Post-grading actions menu
+- [ ] Integrate grading option into main TUI menu (`cli/interactive.ts`)
+  - Add "Grade conversion complexity" option
+  - Route to grading TUI flow
+  - Handle navigation back to main menu
+- [ ] Add breadcrumb navigation for grading wizard
+- [ ] Implement color-coded grade displays
+- [ ] Add interactive component browser for results
+- [ ] CLI and TUI tests
+
+### **Phase 3: Reporting & Output (Week 3-4)**
+- [ ] Implement report generator (`grading/grading-report.ts`)
+- [ ] Console table output (default)
+  - Summary table with scores
+  - Color coding by grade
+  - Total statistics
+- [ ] JSON export
+- [ ] CSV export
+- [ ] HTML report with charts
+  - Overall distribution chart
+  - Category breakdown
+  - Sortable/filterable table
+- [ ] Markdown report
+- [ ] Report tests
+
+### **Phase 4: Effort Estimation (Week 4-5)**
+- [ ] Implement effort estimation algorithm
+  - Calculate automated percentage
+  - Estimate manual hours
+  - Determine skill level required
+- [ ] Generate recommendations
+  - Prioritize by complexity
+  - Suggest conversion order
+  - Identify blockers
+- [ ] Add to reports
+
+### **Phase 5: Polish & Documentation (Week 5-6)**
+- [ ] Comprehensive testing
+  - Test with real Aura components
+  - Test with real VF pages
+  - Edge cases
+- [ ] Performance optimization
+  - Parallel grading for multiple components
+  - Caching
+- [ ] Documentation
+  - Update README with grading feature
+  - Add grading examples
+  - Create grading methodology doc
+- [ ] Integration tests
+- [ ] User acceptance testing
+
+### **Phase 6: Advanced TUI Features (Optional - Week 7-10)**
+
+These advanced features enhance the user experience and provide power-user capabilities. Can be implemented incrementally based on user feedback.
+
+#### **Week 7: Search, Comparison & Saved Configurations**
+- [ ] Component search & live filtering
+  - Real-time search during component selection
+  - Fuzzy matching support
+  - "Select all visible" for filtered results
+- [ ] Component comparison view
+  - Side-by-side comparison of 2-4 components
+  - Difference highlighting
+  - Comparison insights generation
+- [ ] Saved grading configurations
+  - Save/load configuration presets
+  - Default configurations (Quick Assessment, Full Analysis, etc.)
+  - Configuration management UI
+
+#### **Week 8: Batch Operations & Workflows**
+- [ ] Batch operations - Grade & Convert pipeline
+  - Conversion strategy selection (high-grade first, priority order, etc.)
+  - Sequential pipeline execution
+  - Pipeline progress tracking
+  - Pipeline save/resume capability
+- [ ] Conversion priority queue
+  - Dependency graph analysis
+  - Intelligent priority ordering
+  - Queue visualization
+  - Export queue as roadmap
+- [ ] Component grouping & organization
+  - Group by folder, grade, complexity, type
+  - Expandable grouped views
+  - Group-level statistics
+
+#### **Week 9: Visualization & Analytics**
+- [ ] Interactive complexity trend visualization
+  - ASCII-based charts for distribution
+  - Category strength visualization
+  - Project insights generation
+- [ ] Component health dashboard
+  - Overall health metrics
+  - Conversion readiness breakdown
+  - Risk factors analysis
+  - Suggested timeline generation
+- [ ] Drill-down navigation
+  - Category-level detailed breakdown
+  - Source code location references
+  - Conversion examples for patterns
+  - Sub-component grading
+
+#### **Week 10: Collaboration & Power Features**
+- [ ] Team collaboration features
+  - Shareable report generation
+  - Email/Slack/Teams templates
+  - Export for JIRA/Linear
+  - Audience-specific formatting
+- [ ] Watch mode
+  - File system monitoring
+  - Auto-regrade on changes
+  - Change diff display
+  - Configurable polling
+- [ ] Progress saving & resume
+  - Session persistence
+  - Resume interrupted grading
+  - Progress indicators
+- [ ] Quick actions & keyboard shortcuts
+  - Context-sensitive actions
+  - Keyboard navigation
+  - Help system
+- [ ] Custom grading weights
+  - Category weight customization
+  - Preset weight configurations
+  - Project-specific optimization
+
+---
+
+## 7. Example Usage Scenarios
+
+### **Scenario 1: Pre-Conversion Assessment**
+
+```bash
+# User wants to know what they're getting into
+$ lwc-convert grade
+
+Scanning project for components...
+Found 24 Aura components
+Found 18 Visualforce pages
+
+Grading components... [████████████████████] 100%
+
+┌────────────────────────┬──────┬───────┬────────────┬──────────────┐
+│ Component              │ Type │ Score │ Grade      │ Complexity   │
+├────────────────────────┼──────┼───────┼────────────┼──────────────┤
+│ AccountCard            │ Aura │ 92    │ A          │ Simple       │
+│ ContactList            │ Aura │ 85    │ B          │ Easy         │
+│ OpportunityBoard       │ Aura │ 68    │ C          │ Moderate     │
+│ CustomDashboard        │ Aura │ 52    │ D          │ Complex      │
+│ LegacyIntegration      │ Aura │ 35    │ F          │ Very Complex │
+│ AccountPage            │ VF   │ 88    │ B          │ Easy         │
+│ ContactDetail          │ VF   │ 71    │ C          │ Moderate     │
+│ ...                    │ ...  │ ...   │ ...        │ ...          │
+└────────────────────────┴──────┴───────┴────────────┴──────────────┘
+
+Summary:
+  Total: 42 components
+  Average Score: 73 (C - Moderate)
+
+  Grade Distribution:
+    A (Simple):       8 components (19%)
+    B (Easy):         12 components (29%)
+    C (Moderate):     15 components (36%)
+    D (Complex):      5 components (12%)
+    F (Very Complex): 2 components (5%)
+
+  Estimated Effort:
+    Automated:  62% of conversion work
+    Manual:     38% requiring developer attention
+    Time:       80-120 developer hours
+    Skill:      Intermediate LWC knowledge required
+
+Recommendations:
+  1. Start with Grade A/B components to build confidence
+  2. Address LegacyIntegration and CustomDashboard last
+  3. Consider refactoring before conversion for D/F components
+  4. Export detailed report: lwc-convert grade --format html --output report.html
+
+Run 'lwc-convert grade --detailed' for full breakdown
+```
+
+### **Scenario 2: Specific Component Assessment**
+
+```bash
+# User wants details on one component
+$ lwc-convert grade AccountCard --type aura --detailed
+
+Grading AccountCard...
+
+Component: AccountCard
+Type: Aura Component
+Path: force-app/main/default/aura/AccountCard/AccountCard.cmp
+
+┌─────────────────────────────────────────────────────────┐
+│ OVERALL GRADE                                           │
+├─────────────────────────────────────────────────────────┤
+│ Score:      92/100                                      │
+│ Grade:      A                                           │
+│ Complexity: Simple - Highly automatable                 │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────┬───────┬────────┬──────────────┐
+│ Category                │ Score │ Weight │ Contribution │
+├─────────────────────────┼───────┼────────┼──────────────┤
+│ Component Mappings      │ 98    │ 25%    │ 24.5         │
+│ JavaScript Patterns     │ 90    │ 25%    │ 22.5         │
+│ Data Binding            │ 95    │ 20%    │ 19.0         │
+│ Lifecycle & Events      │ 85    │ 15%    │ 12.8         │
+│ Dependencies            │ 90    │ 10%    │ 9.0          │
+│ Styling                 │ 100   │ 5%     │ 5.0          │
+└─────────────────────────┴───────┴────────┴──────────────┘
+
+Complexity Factors:
+  ✓ All components have direct LWC mappings
+  ✓ Simple controller with 3 methods
+  ✓ No complex expressions or formulas
+  ⚠ Uses one component event (AccountCardEvent.evt) - Medium impact
+  ✓ SLDS styling only, no custom CSS
+  ✓ Minimal dependencies (lightning:card, lightning:button)
+
+Conversion Effort:
+  Automated:  95% of conversion work
+  Manual:     5% - event handling adjustment
+  Time:       0.5-1 hour for review and testing
+  Skill:      Beginner-friendly
+
+Recommendations:
+  1. ✅ Excellent candidate for full automated conversion
+  2. Review event handling in AccountCardController.js:45
+  3. Verify lightning-card usage after conversion
+  4. Run tests to ensure behavior preservation
+
+Next Steps:
+  Convert now: lwc-convert aura AccountCard --full
+  Export grade: lwc-convert grade AccountCard --format json
+```
+
+### **Scenario 3: Bulk Analysis for Prioritization**
+
+```bash
+# Export for spreadsheet analysis
+$ lwc-convert grade --type aura --format csv --output aura-grades.csv
+
+Grading all Aura components...
+Found 24 components
+
+[████████████████████] 100%
+
+✓ Exported to aura-grades.csv
+
+# Now user can open in Excel/Sheets and:
+# - Sort by score to find easiest conversions
+# - Filter by grade to tackle similar complexity together
+# - Sum effort estimates for project planning
+# - Share with stakeholders
+```
+
+### **Scenario 4: Interactive TUI Grading Flow**
+
+```bash
+# User runs interactive mode
+$ lwc-convert
+
+ 🔄 LWC Convert
+┌─────────────────────────────────────────────────────────┐
+│ Welcome                                                 │
+├─────────────────────────────────────────────────────────┤
+│ Convert Aura & Visualforce to Lightning Web Components │
+│ Use arrow keys to navigate, Enter to select, Ctrl+C to │
+│ cancel                                                  │
+└─────────────────────────────────────────────────────────┘
+
+? What would you like to do?
+  › Convert Aura component to LWC
+    Convert Visualforce page to LWC
+    Grade conversion complexity     ← User selects this
+    View session report
+    Clean up session data
+
+# STEP 1: Grade Type
+📍 ● Grade Type → Scope → Options → Preview → Results
+
+? What would you like to grade?
+  › ⚡ Aura Components
+    📄 Visualforce Pages
+    🔄 Both (Aura & VF)
+    ← Back to main menu
+
+# User selects Aura
+
+# STEP 2: Scope Selection
+📍 ✓ Grade Type → ● Scope → Options → Preview → Results
+
+◐ Scanning for Aura components...
+✓ Scan complete
+
+? What would you like to grade?
+  › 📦 Entire project (scan all components)
+    📁 Specific folder
+    📝 Specific component (select from list)
+    ✏️  Enter path manually
+    ← Back
+
+# User selects "Specific component"
+
+? Select component(s) to grade: (Space to select, Enter to confirm)
+  [ ] ⚡ AccountCard         (force-app/main/default/aura/AccountCard)
+  [x] ⚡ ContactList         (force-app/main/default/aura/ContactList)
+  [x] ⚡ OpportunityBoard    (force-app/main/default/aura/OpportunityBoard)
+  [ ] ⚡ CustomDashboard     (force-app/main/default/aura/CustomDashboard)
+  [ ] Select all
+  [ ] ← Back
+
+# User selects 2 components and presses Enter
+
+# STEP 3: Options
+📍 ✓ Grade Type → ✓ Scope → ● Options → Preview → Results
+
+? Detail level:
+  › 📊 Summary (quick overview with scores)
+    📋 Standard (category breakdowns)
+    🔍 Detailed (full analysis with complexity factors)
+
+# User selects Standard
+
+? Sort results by:
+  › 📈 Score (highest first)
+    📉 Score (lowest first)
+    🔤 Name (alphabetical)
+    📁 Path (directory order)
+
+# User selects Score (highest first)
+
+? Filter results: (optional)
+  › All components
+    Only grade A-B (simple/easy)
+    Only grade C (moderate)
+    Only grade D-F (complex/very complex)
+
+# User selects All components
+
+? Export options: (Space to select multiple)
+  [ ] 💾 JSON export
+  [ ] 📊 CSV export
+  [ ] 🌐 HTML report
+  [x] 📝 Markdown report
+  [x] 🖥️  Console display only
+
+# User selects Markdown + Console
+
+? Export directory:
+  ./grading-reports/
+
+# STEP 4: Preview
+📍 ✓ Grade Type → ✓ Scope → ✓ Options → ● Preview → Results
+
+┌─────────────────────────────────────────────────────────┐
+│ 📋 Grading Configuration Summary                        │
+├─────────────────────────────────────────────────────────┤
+│ Type:         ⚡ Aura Components                         │
+│ Scope:        📝 Specific components                    │
+│ Components:   2 components selected                     │
+│               • ContactList                             │
+│               • OpportunityBoard                        │
+│ Detail:       📋 Standard                               │
+│ Sort:         📈 Score (highest first)                  │
+│ Filter:       All components                            │
+│ Export:       📝 Markdown, 🖥️  Console                   │
+│ Output:       ./grading-reports/                        │
+└─────────────────────────────────────────────────────────┘
+
+? Proceed with grading? (Y/n)
+
+# User presses Enter
+
+# STEP 5: Grading Progress
+📍 ✓ Grade Type → ✓ Scope → ✓ Options → ✓ Preview → ● Results
+
+◇ Grading components...
+│
+├─ ✓ ContactList (1/2) - Score: 85 (B)
+├─ ✓ OpportunityBoard (2/2) - Score: 68 (C)
+│
+└─ Complete!
+
+# Results Display
+┌────────────────────────┬──────┬───────┬───────┬──────────────┐
+│ Component              │ Type │ Score │ Grade │ Complexity   │
+├────────────────────────┼──────┼───────┼───────┼──────────────┤
+│ ContactList            │ Aura │ 85    │ B     │ Easy         │
+│ OpportunityBoard       │ Aura │ 68    │ C     │ Moderate     │
+└────────────────────────┴──────┴───────┴───────┴──────────────┘
+
+📊 ContactList - Score: 85 (B - Easy)
+┌─────────────────────────┬───────┬────────┬──────────────┐
+│ Category                │ Score │ Weight │ Contribution │
+├─────────────────────────┼───────┼────────┼──────────────┤
+│ Component Mappings      │ 90    │ 25%    │ 22.5         │
+│ JavaScript Patterns     │ 85    │ 25%    │ 21.3         │
+│ Data Binding            │ 88    │ 20%    │ 17.6         │
+│ Lifecycle & Events      │ 75    │ 15%    │ 11.3         │
+│ Dependencies            │ 80    │ 10%    │ 8.0          │
+│ Styling                 │ 95    │ 5%     │ 4.8          │
+└─────────────────────────┴───────┴────────┴──────────────┘
+
+⚡ Conversion Effort: 85% automated, 15% manual
+💡 Recommendation: Good candidate for full conversion
+
+📊 OpportunityBoard - Score: 68 (C - Moderate)
+┌─────────────────────────┬───────┬────────┬──────────────┐
+│ Category                │ Score │ Weight │ Contribution │
+├─────────────────────────┼───────┼────────┼──────────────┤
+│ Component Mappings      │ 75    │ 25%    │ 18.8         │
+│ JavaScript Patterns     │ 65    │ 25%    │ 16.3         │
+│ Data Binding            │ 70    │ 20%    │ 14.0         │
+│ Lifecycle & Events      │ 60    │ 15%    │ 9.0          │
+│ Dependencies            │ 65    │ 10%    │ 6.5          │
+│ Styling                 │ 80    │ 5%     │ 4.0          │
+└─────────────────────────┴───────┴────────┴──────────────┘
+
+⚡ Conversion Effort: 65% automated, 35% manual
+💡 Recommendation: Requires attention in specific areas
+
+✓ Exported to ./grading-reports/aura-grades-2026-01-24.md
+
+? What would you like to do next?
+  › 🔍 View detailed breakdown for specific component
+    💾 Export results in different format
+    ⚡ Convert a component now
+    🔄 Grade more components
+    🏠 Return to main menu
+    ✓ Done
+
+# User selects "Convert a component now"
+
+? Select component to convert:
+  › ContactList [B] - Recommended
+    OpportunityBoard [C]
+
+# User selects ContactList
+
+? Conversion mode:
+  › ⚡ Full conversion (recommended for Grade B)
+    📝 Scaffolding
+
+# User selects Full conversion
+
+⚡ Starting conversion...
+
+# Seamlessly transitions to conversion flow
+```
+
+This scenario demonstrates:
+- Seamless integration with main menu
+- Step-by-step wizard with clear navigation
+- Component selection with multiselect
+- Configurable options for detail level and export
+- Visual progress indicators
+- Color-coded grade results
+- Category breakdowns in tables
+- Post-grading actions including direct conversion
+- Smooth transition from grading to conversion
+
+---
+
+## 8. Integration with Existing Features
+
+### **8.1 Confidence Scorer**
+- Extend existing `confidence-scorer.ts` for VF pages
+- Add Aura-specific confidence scoring
+- Align scoring methodology with grading system
+- Reuse existing component mapping logic
+
+### **8.2 Session Storage**
+- Store grading results in session
+- Track component grades over time
+- Learn from successful conversions to improve grading accuracy
+- Use historical data for effort estimation
+
+### **8.3 Conversion Flow**
+- Show grade before conversion in interactive mode
+- Use grade to recommend scaffolding vs full conversion
+- Adjust generated TODO comments based on grade
+- Include grade in CONVERSION_NOTES.md
+
+### **8.4 Test Generation**
+- Use complexity factors to generate more comprehensive tests
+- Add tests for high-complexity areas
+- Include grade in test documentation
+
+---
+
+## 9. Success Metrics
+
+### **How we know this feature is successful:**
+
+1. **Accuracy**: Grading correlates with actual conversion effort
+   - Track: Time to convert vs. estimated effort
+   - Target: ±20% accuracy on manual effort estimates
+
+2. **Adoption**: Users use grading before conversion
+   - Track: % of conversions preceded by grading
+   - Target: >60% of users grade before converting
+
+3. **Prioritization**: Users tackle easier components first
+   - Track: Conversion order vs. grade order
+   - Target: Grade A/B components converted before D/F
+
+4. **Confidence**: Users feel prepared for conversion work
+   - Track: User feedback/surveys
+   - Target: 80% find grading helpful
+
+5. **Completeness**: Grading catches complexity factors
+   - Track: Surprises during conversion
+   - Target: <10% "unexpected complexity" feedback
+
+---
+
+## 10. Future Enhancements
+
+### **Post-MVP features:**
+- 📊 **Trend analysis**: Grade components over time
+- 🔍 **Comparison mode**: Compare before/after refactoring
+- 🎯 **Custom grading rubrics**: Let users define their own weights
+- 🤖 **ML-based grading**: Learn from conversion outcomes
+- 📈 **Project analytics**: Portfolio-level insights
+- 🔗 **CI/CD integration**: Grade components in PRs
+- 💬 **Recommendation engine**: Auto-suggest refactoring
+- 📦 **Batch operations**: Grade → Convert → Deploy pipeline
+
+---
+
+## 11. Open Questions
+
+1. **Should grading consider target LWC patterns?**
+   - E.g., grade differently for LWC OSS vs. Salesforce platform?
+
+2. **How to handle custom components without source?**
+   - Grade based on interface only?
+   - Default to "unknown" complexity?
+
+3. **Should we factor in technical debt?**
+   - Older code patterns might grade lower
+   - How to detect code age/quality?
+
+4. **Integration with Salesforce CLI?**
+   - Should we integrate with `sfdx` for metadata discovery?
+   - Read from `sfdx-project.json`?
+
+5. **Grading for partial components?**
+   - What if only `.cmp` exists, no controller?
+   - How to grade incomplete bundles?
+
+---
+
+## 12. Implementation Checklist
+
+### **Pre-Development**
+- [ ] Review and approve this plan
+- [ ] Finalize grading weights and thresholds
+- [ ] Set up feature branch
+- [ ] Create implementation tracking issue
+
+### **Development (6 weeks)**
+- [ ] Phase 1: Core Grading Engine
+- [ ] Phase 2: CLI Integration
+- [ ] Phase 3: Reporting & Output
+- [ ] Phase 4: Effort Estimation
+- [ ] Phase 5: Polish & Documentation
+
+### **Testing**
+- [ ] Unit tests (80% coverage)
+- [ ] Integration tests
+- [ ] Real-world component testing
+- [ ] Performance testing (100+ components)
+- [ ] User acceptance testing
+
+### **Documentation**
+- [ ] Update README
+- [ ] Add GRADING_METHODOLOGY.md
+- [ ] Add CLI help text
+- [ ] Create example reports
+- [ ] Update CHANGELOG
+
+### **Release**
+- [ ] Version bump (1.1.0)
+- [ ] Release notes
+- [ ] Announce feature
+- [ ] Gather feedback
+
+---
+
+## Conclusion
+
+This conversion complexity grading feature will:
+- ✅ Help users assess conversion effort upfront
+- ✅ Enable prioritization of conversion work
+- ✅ Provide actionable insights and recommendations
+- ✅ Integrate seamlessly with existing tool flow
+- ✅ Use intuitive letter grades with detailed scoring
+- ✅ Support multiple output formats for various workflows
+- ✅ Build on existing parsing and analysis capabilities
+
+**Recommended Next Step:** Review and approve this plan, then begin Phase 1 implementation with core grading engine development.
