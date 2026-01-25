@@ -3,6 +3,7 @@ import { GradeCalculator } from './grade-calculator';
 import { MetricExtractor } from './complexity-metrics';
 import { parseAuraMarkup } from '../parsers/aura/markup-parser';
 import { readAuraBundle } from '../utils/file-io';
+import { CLI_VERSION } from '../cli/options';
 import * as path from 'path';
 
 export class AuraGrader {
@@ -52,7 +53,7 @@ export class AuraGrader {
             recommendations,
             warnings: [], // TODO: Add warnings if parsing failed or other issues
             gradedAt: new Date(),
-            gradedVersion: '1.0.0'
+            gradedVersion: CLI_VERSION
         };
     }
 

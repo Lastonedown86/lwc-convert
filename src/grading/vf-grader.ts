@@ -3,6 +3,7 @@ import { GradeCalculator } from './grade-calculator';
 import { MetricExtractor } from './complexity-metrics';
 import { parseVfPage } from '../parsers/vf/page-parser';
 import { readVfPage } from '../utils/file-io';
+import { CLI_VERSION } from '../cli/options';
 
 export class VfGrader {
     async grade(pagePath: string): Promise<ComponentGrade> {
@@ -51,7 +52,7 @@ export class VfGrader {
             recommendations,
             warnings: [],
             gradedAt: new Date(),
-            gradedVersion: '1.0.0'
+            gradedVersion: CLI_VERSION
         };
     }
 
