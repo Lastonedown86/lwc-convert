@@ -22,18 +22,20 @@ jobs:
         with:
           release-type: node
 
-      - name: Enable auto-merge for release PR
+      - name: Auto-approve and enable auto-merge for release PR
         run: |
           # List all open PRs and find release-please PR by title
           PR_NUMBER=$(gh pr list --repo ${{ github.repository }} --state open --json number,title | jq -r '.[] | select(.title | startswith("chore(main): release")) | .number')
           if [ -n "$PR_NUMBER" ]; then
+            echo "Auto-approving PR #$PR_NUMBER"
+            gh pr review "$PR_NUMBER" --approve --repo ${{ github.repository }}
             echo "Enabling auto-merge on PR #$PR_NUMBER"
             gh pr merge "$PR_NUMBER" --auto --squash --repo ${{ github.repository }}
           else
             echo "No release PR found"
           fi
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
 
   publish:
     needs: release-please
