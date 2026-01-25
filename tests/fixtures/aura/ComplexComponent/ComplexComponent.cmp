@@ -1,0 +1,11 @@
+<aura:component controller="MyController" implements="force:appHostable">
+    <aura:attribute name="message" type="String" default="Hello"/>
+    <aura:handler name="init" value="{!this}" action="{!c.doInit}"/>
+    
+    <div class="container">
+        <ui:button label="Click Me" press="{!c.handleClick}"/>
+        {!v.message}
+        
+        <c:OtherComponent/>
+    </div>
+</aura:component>

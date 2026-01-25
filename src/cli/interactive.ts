@@ -13,17 +13,20 @@ import {
   VfControllerReference,
   getControllerTypeLabel
 } from '../utils/vf-controller-resolver';
+import { GradingOptions } from '../grading/types';
 
 export interface TuiAnswers {
-  conversionType: 'aura' | 'vf';
-  componentPath: string;
+  action: 'convert' | 'grade';
+  conversionType?: 'aura' | 'vf';
+  componentPath?: string;
   controllerPath?: string;
   controllerPaths?: string[];
   detectedControllers?: VfControllerReference[];
-  outputDir: string;
-  conversionMode: 'scaffolding' | 'full';
-  openFolder: boolean;
-  preview: boolean;
+  outputDir?: string;
+  conversionMode?: 'scaffolding' | 'full';
+  openFolder?: boolean;
+  preview?: boolean;
+  gradingOptions?: GradingOptions;
 }
 
 // Step definitions for breadcrumbs
@@ -212,6 +215,7 @@ export async function runInteractiveTui(): Promise<TuiAnswers | null> {
 
   // State management
   let currentStep = 0;
+  let action: 'convert' | 'grade' = 'convert';
   let conversionType: 'aura' | 'vf' | undefined;
   let componentPath: string | undefined;
   let controllerPath: string | undefined;
@@ -221,24 +225,61 @@ export async function runInteractiveTui(): Promise<TuiAnswers | null> {
   let conversionMode: 'scaffolding' | 'full' = 'scaffolding';
   let openFolder: boolean = true;
   let preview: boolean = false;
+  let gradingOptions: GradingOptions | undefined;
 
   // Main wizard loop - allows navigation back to any step
   wizardLoop: while (currentStep < 4) {
-    // Step 1: Select conversion type
+    // Step 1: Select action and type
     while (currentStep === 0) {
       showBreadcrumbs(currentStep);
 
-      const typeResult = await p.select({
-        message: 'What would you like to convert?',
+      const actionResult = await p.select({
+        message: 'What would you like to do?',
         options: [
-          { value: 'aura', label: '⚡ Aura Component → LWC', hint: 'Convert Aura bundles' },
-          { value: 'vf', label: '📄 Visualforce Page → LWC', hint: 'Convert VF pages' },
+          { value: 'convert_aura', label: '⚡ Convert Aura Component', hint: 'Convert Aura bundles to LWC' },
+          { value: 'convert_vf', label: '📄 Convert Visualforce Page', hint: 'Convert VF pages to LWC' },
+          { value: 'grade', label: '📊 Grade Complexity', hint: 'Analyze components before conversion' },
         ],
       });
 
-      if (isCancel(typeResult)) return handleCancel();
-      conversionType = typeResult as 'aura' | 'vf';
-      currentStep = 1;
+      if (isCancel(actionResult)) return handleCancel();
+
+      const selected = actionResult as string;
+
+      if (selected === 'grade') {
+        action = 'grade';
+        // Grading flow
+        const gradeTypeResult = await p.select({
+          message: 'What would you like to grade?',
+          options: [
+            { value: 'aura', label: '⚡ Aura Components' },
+            { value: 'vf', label: '📄 Visualforce Pages' },
+            { value: 'both', label: '🔄 Both (Project Scan)' },
+          ]
+        });
+
+        if (isCancel(gradeTypeResult)) return handleCancel();
+
+        // Setup default grading options
+        gradingOptions = {
+          type: gradeTypeResult as 'aura' | 'vf' | 'both',
+          scope: 'project', // Default
+          detailLevel: 'summary',
+          exportFormats: ['console']
+        };
+
+        // If both, we default to project scope and skip to options
+        if (gradeTypeResult === 'both') {
+          currentStep = 3; // Jump to options
+        } else {
+          conversionType = gradeTypeResult as 'aura' | 'vf';
+          currentStep = 1; // Go to scope selection (reuse component selection logic)
+        }
+      } else {
+        action = 'convert';
+        conversionType = selected === 'convert_aura' ? 'aura' : 'vf';
+        currentStep = 1;
+      }
     }
 
     // Step 2: Select source component/page
@@ -392,10 +433,19 @@ export async function runInteractiveTui(): Promise<TuiAnswers | null> {
 
         currentStep = 2;
       }
+
+      // If grading, update target path and skip controller selection
+      if (action === 'grade' && componentPath) {
+        if (gradingOptions) {
+          gradingOptions.targetPath = componentPath;
+          gradingOptions.scope = conversionType === 'aura' ? 'component' : 'file';
+        }
+        currentStep = 3; // Skip to options
+      }
     }
 
-    // Step 3: Controllers (VF only)
-    while (currentStep === 2 && conversionType === 'vf' && componentPath) {
+    // Step 3: Controllers (VF only, skip for grading)
+    while (currentStep === 2 && conversionType === 'vf' && componentPath && action !== 'grade') {
       showBreadcrumbs(currentStep, conversionType);
 
       const resolvedPagePath = path.resolve(componentPath);
@@ -520,6 +570,48 @@ export async function runInteractiveTui(): Promise<TuiAnswers | null> {
     while (currentStep === 3) {
       showBreadcrumbs(currentStep, conversionType);
 
+      if (action === 'grade' && gradingOptions) {
+        // Grading Options
+        const detailResult = await p.select({
+          message: 'Detail level:',
+          options: [
+            { value: 'summary', label: '📊 Summary', hint: 'Overview with scores' },
+            { value: 'standard', label: '📋 Standard', hint: 'Category breakdowns' },
+            { value: 'detailed', label: '🔍 Detailed', hint: 'Full analysis with factors' },
+          ]
+        });
+
+        if (isCancel(detailResult)) return handleCancel();
+        gradingOptions.detailLevel = detailResult as any;
+
+        const exportResult = await p.multiselect({
+          message: 'Export options:',
+          options: [
+            { value: 'console', label: '🖥️ Console display', hint: 'Show in terminal' },
+            { value: 'json', label: '💾 JSON export', hint: 'Save to file' },
+          ],
+          initialValues: ['console'],
+          required: true
+        });
+
+        if (isCancel(exportResult)) return handleCancel();
+        gradingOptions.exportFormats = exportResult as any;
+
+        if ((exportResult as string[]).includes('json')) {
+          const outputResult = await p.text({
+            message: 'Export file path:',
+            initialValue: './grading-report.json',
+          });
+          if (isCancel(outputResult)) return handleCancel();
+          gradingOptions.exportDir = outputResult as string;
+        }
+
+        currentStep = 4;
+        continue wizardLoop;
+      }
+
+      // Conversion Options
+
       const modeResult = await p.select({
         message: 'Conversion mode:',
         options: [
@@ -581,40 +673,53 @@ export async function runInteractiveTui(): Promise<TuiAnswers | null> {
   // Step 5: Confirmation
   showBreadcrumbs(currentStep, conversionType);
 
-  const summaryLines = [
-    `${color.dim('Type:')}         ${conversionType === 'aura' ? '⚡ Aura → LWC' : '📄 VF → LWC'}`,
-    `${color.dim('Source:')}       ${componentPath}`,
-  ];
+  const summaryLines: string[] = [];
 
-  if (controllerPaths.length > 0) {
-    summaryLines.push(`${color.dim('Controllers:')}  ${controllerPaths.length} selected`);
-    controllerPaths.forEach(cp => {
-      summaryLines.push(`               ${color.dim('•')} ${path.basename(cp)}`);
-    });
+  if (action === 'grade') {
+    summaryLines.push(`${color.dim('Action:')}       📊 Grade Complexity`);
+    summaryLines.push(`${color.dim('Type:')}         ${gradingOptions?.type === 'both' ? 'Project Scan' : (gradingOptions?.type === 'aura' ? '⚡ Aura' : '📄 VF')}`);
+    if (gradingOptions?.targetPath) {
+      summaryLines.push(`${color.dim('Target:')}       ${gradingOptions.targetPath}`);
+    } else {
+      summaryLines.push(`${color.dim('Scope:')}        Entire Project`);
+    }
+    summaryLines.push(`${color.dim('Detail:')}       ${gradingOptions?.detailLevel}`);
+    summaryLines.push(`${color.dim('Export:')}       ${gradingOptions?.exportFormats?.join(', ')}`);
+  } else {
+    summaryLines.push(`${color.dim('Type:')}         ${conversionType === 'aura' ? '⚡ Aura → LWC' : '📄 VF → LWC'}`);
+    summaryLines.push(`${color.dim('Source:')}       ${componentPath}`);
+
+    if (controllerPaths.length > 0) {
+      summaryLines.push(`${color.dim('Controllers:')}  ${controllerPaths.length} selected`);
+      controllerPaths.forEach(cp => {
+        summaryLines.push(`               ${color.dim('•')} ${path.basename(cp)}`);
+      });
+    }
+
+    summaryLines.push(`${color.dim('Mode:')}         ${conversionMode === 'full' ? '⚡ Full' : '📝 Scaffolding'}`);
+    summaryLines.push(`${color.dim('Output:')}       ${outputDir}`);
+    summaryLines.push(`${color.dim('Open folder:')} ${openFolder ? '✓ Yes' : '✗ No'}`);
+    summaryLines.push(`${color.dim('UI Preview:')}   ${preview ? '✓ Yes' : '✗ No'}`);
   }
 
-  summaryLines.push(`${color.dim('Mode:')}         ${conversionMode === 'full' ? '⚡ Full' : '📝 Scaffolding'}`);
-  summaryLines.push(`${color.dim('Output:')}       ${outputDir}`);
-  summaryLines.push(`${color.dim('Open folder:')} ${openFolder ? '✓ Yes' : '✗ No'}`);
-  summaryLines.push(`${color.dim('UI Preview:')}   ${preview ? '✓ Yes' : '✗ No'}`);
-
-  p.note(summaryLines.join('\n'), '📋 Conversion Summary');
+  p.note(summaryLines.join('\n'), action === 'grade' ? '📋 Grading Configuration' : '📋 Conversion Summary');
 
   const confirm = await p.confirm({
-    message: 'Proceed with conversion?',
+    message: action === 'grade' ? 'Proceed with grading?' : 'Proceed with conversion?',
     initialValue: true,
   });
 
   if (isCancel(confirm) || !confirm) {
-    p.cancel('Conversion cancelled.');
+    p.cancel('Operation cancelled.');
     return null;
   }
 
-  p.outro(color.green('Starting conversion...'));
+  p.outro(color.green(action === 'grade' ? 'Starting grading...' : 'Starting conversion...'));
 
   return {
-    conversionType: conversionType!,
-    componentPath: componentPath!,
+    action,
+    conversionType: conversionType,
+    componentPath: componentPath,
     controllerPath,
     controllerPaths: controllerPaths.length > 0 ? controllerPaths : undefined,
     detectedControllers: detectedControllers.length > 0 ? detectedControllers : undefined,
@@ -622,5 +727,6 @@ export async function runInteractiveTui(): Promise<TuiAnswers | null> {
     conversionMode,
     openFolder,
     preview,
+    gradingOptions
   };
 }
