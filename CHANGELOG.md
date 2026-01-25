@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.2](https://github.com/Lastonedown86/lwc-convert/compare/v1.1.1...v1.1.2) (2026-01-25)
+
+
+### Bug Fixes
+
+* use dynamic version in grading reports ([984a687](https://github.com/Lastonedown86/lwc-convert/commit/984a687a5c3f946a05a4c31dbbfd21f054a6b8aa))
+
 ## [1.1.1](https://github.com/Lastonedown86/lwc-convert/compare/v1.1.0...v1.1.1) (2026-01-25)
 
 
