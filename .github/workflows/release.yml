@@ -23,11 +23,15 @@ jobs:
           release-type: node
 
       - name: Enable auto-merge for release PR
-        if: ${{ steps.release.outputs.pr }}
         run: |
-          PR_NUMBER=$(echo '${{ steps.release.outputs.pr }}' | jq -r '.number')
-          echo "Enabling auto-merge on PR #$PR_NUMBER"
-          gh pr merge "$PR_NUMBER" --auto --squash --repo ${{ github.repository }}
+          # Find PR by release-please title pattern
+          PR_NUMBER=$(gh pr list --repo ${{ github.repository }} --search "chore(main): release in:title" --state open --json number --jq '.[0].number')
+          if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "null" ]; then
+            echo "Enabling auto-merge on PR #$PR_NUMBER"
+            gh pr merge "$PR_NUMBER" --auto --squash --repo ${{ github.repository }}
+          else
+            echo "No release PR found"
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
