@@ -63,7 +63,7 @@ function generateMetaXml(
   }
 ): string {
   const {
-    apiVersion = '59.0',
+    apiVersion = '62.0',
     isExposed = true,
     targets = ['lightning__RecordPage', 'lightning__AppPage', 'lightning__HomePage'],
     description,
