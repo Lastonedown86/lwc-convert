@@ -303,18 +303,105 @@ export async function analyzeVfPage(
 }
 
 /**
+ * Read sfdx-project.json and return package directories
+ */
+async function getPackageDirectories(rootPath: string): Promise<string[]> {
+  const sfdxProjectPath = path.join(rootPath, 'sfdx-project.json');
+
+  if (await fs.pathExists(sfdxProjectPath)) {
+    try {
+      const projectConfig = await fs.readJson(sfdxProjectPath);
+      if (projectConfig.packageDirectories && Array.isArray(projectConfig.packageDirectories)) {
+        return projectConfig.packageDirectories.map((pkg: { path: string }) =>
+          path.join(rootPath, pkg.path)
+        );
+      }
+    } catch (error) {
+      logger.debug(`Error reading sfdx-project.json: ${error}`);
+    }
+  }
+
+  return [];
+}
+
+/**
+ * Recursively find all 'pages' directories within a path
+ */
+async function findPagesDirectories(basePath: string): Promise<string[]> {
+  const pagesDirectories: string[] = [];
+
+  async function searchDir(dirPath: string, depth: number = 0): Promise<void> {
+    if (depth > 5) return; // Limit recursion depth
+
+    try {
+      const entries = await fs.readdir(dirPath, { withFileTypes: true });
+
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          const fullPath = path.join(dirPath, entry.name);
+
+          if (entry.name === 'pages') {
+            pagesDirectories.push(fullPath);
+          } else if (!entry.name.startsWith('.') && entry.name !== 'node_modules') {
+            await searchDir(fullPath, depth + 1);
+          }
+        }
+      }
+    } catch {
+      // Ignore permission errors
+    }
+  }
+
+  await searchDir(basePath);
+  return pagesDirectories;
+}
+
+/**
  * Scan a directory for Visualforce pages and analyze all of them
  */
 export async function scanVfPages(rootPath: string): Promise<ComponentAnalysisResult[]> {
   const results: ComponentAnalysisResult[] = [];
+  const searchPaths: string[] = [];
 
-  // Common VF page locations
-  const searchPaths = [
+  // First, try to read sfdx-project.json for package directories
+  const packageDirs = await getPackageDirectories(rootPath);
+
+  if (packageDirs.length > 0) {
+    // Search within each package directory for 'pages' folders
+    for (const pkgDir of packageDirs) {
+      const foundPagesDirs = await findPagesDirectories(pkgDir);
+      searchPaths.push(...foundPagesDirs);
+    }
+    logger.debug(`Found pages directories from sfdx-project.json: ${searchPaths.join(', ')}`);
+  }
+
+  // Also add fallback common locations
+  const fallbackPaths = [
     path.join(rootPath, 'force-app/main/default/pages'),
     path.join(rootPath, 'src/pages'),
     path.join(rootPath, 'pages'),
-    rootPath, // Direct path
   ];
+
+  for (const fallback of fallbackPaths) {
+    if (!searchPaths.includes(fallback)) {
+      searchPaths.push(fallback);
+    }
+  }
+
+  // Also check if rootPath itself is a pages directory or a .page file
+  if (rootPath.endsWith('.page')) {
+    searchPaths.unshift(rootPath);
+  } else if (await fs.pathExists(rootPath)) {
+    const stat = await fs.stat(rootPath);
+    if (stat.isDirectory()) {
+      const files = await fs.readdir(rootPath);
+      if (files.some(f => f.endsWith('.page'))) {
+        searchPaths.unshift(rootPath);
+      }
+    }
+  }
+
+  logger.debug(`Searching for VF pages in: ${searchPaths.join(', ')}`);
 
   for (const searchPath of searchPaths) {
     if (await fs.pathExists(searchPath)) {
