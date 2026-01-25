@@ -1,78 +1,55 @@
 name: Release
 
 on:
-  workflow_dispatch:
-    inputs:
-      bump:
-        description: 'Version bump type'
-        required: true
-        default: 'patch'
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
-  release:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - name: Run release-please
+        id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          release-type: node
+
+  publish:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      pull-requests: write
-
+      id-token: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
 
-      - name: Create release branch and bump version
-        id: create_release
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          BUMP_TYPE="${{ inputs.bump || 'patch' }}"
-          
-          # Create a temporary branch first to ensure we don't commit to main
-          git checkout -b release-prep-temp
-          
-          # Bump version
-          npm version $BUMP_TYPE --no-git-tag-version
-          NEW_VERSION=$(node -p "require('./package.json').version")
-          
-          # Rename branch to final release branch name
-          BRANCH_NAME="release/v$NEW_VERSION"
-          git branch -m "$BRANCH_NAME"
-          
-          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
-          echo "Bumped to version $NEW_VERSION ($BUMP_TYPE) on branch $BRANCH_NAME"
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Commit and Push
+      - name: Run tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Publish to npm
+        run: npm publish --provenance --access public
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION="${{ steps.create_release.outputs.version }}"
-          BRANCH="${{ steps.create_release.outputs.branch_name }}"
-          
-          git add package.json package-lock.json
-          git commit -m "chore: release v$VERSION"
-          
-          # Push the new branch
-          git push origin "$BRANCH"
-          
-          # Create PR and enable auto-merge
-          gh pr create --title "chore: release v$VERSION" \
-            --body "Automated release PR for version $VERSION" \
-            --base main \
-            --head "$BRANCH"
-
-          # Enable auto-merge (will merge once CI passes)
-          gh pr merge "$BRANCH" --auto --squash
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
