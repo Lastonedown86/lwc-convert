@@ -2,6 +2,20 @@
  * CLI option definitions and types
  */
 
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
+// Read version from package.json to keep in sync
+function getPackageVersion(): string {
+  try {
+    const packagePath = join(__dirname, '..', '..', 'package.json');
+    const packageJson = JSON.parse(readFileSync(packagePath, 'utf-8'));
+    return packageJson.version;
+  } catch {
+    return '0.0.0';
+  }
+}
+
 export interface ConversionOptions {
   output: string;
   full: boolean;
@@ -22,7 +36,7 @@ export interface VfConversionOptions extends ConversionOptions {
 
 export const DEFAULT_OUTPUT_DIR = './lwc-output';
 
-export const CLI_VERSION = '1.0.0';
+export const CLI_VERSION = getPackageVersion();
 
 export const CLI_NAME = 'lwc-convert';
 
