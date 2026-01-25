@@ -93,20 +93,24 @@ export async function readAuraBundle(bundlePath: string): Promise<AuraBundle> {
 }
 
 /**
- * Read a Visualforce page file
+ * Read a Visualforce page or component file
  */
 export async function readVfPage(pagePath: string, controllerPath?: string): Promise<VfPage> {
   const resolvedPath = path.resolve(pagePath);
 
   if (!await fs.pathExists(resolvedPath)) {
-    throw new Error(`Visualforce page not found at: ${resolvedPath}`);
+    throw new Error(`Visualforce file not found at: ${resolvedPath}`);
   }
 
-  if (!resolvedPath.endsWith('.page')) {
-    throw new Error(`Expected a .page file: ${resolvedPath}`);
+  const isPage = resolvedPath.endsWith('.page');
+  const isComponent = resolvedPath.endsWith('.component');
+
+  if (!isPage && !isComponent) {
+    throw new Error(`Expected a .page or .component file: ${resolvedPath}`);
   }
 
-  const pageName = path.basename(resolvedPath, '.page');
+  const extension = isPage ? '.page' : '.component';
+  const pageName = path.basename(resolvedPath, extension);
   const markup = await fs.readFile(resolvedPath, 'utf-8');
 
   const vfPage: VfPage = {
