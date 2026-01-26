@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.5](https://github.com/Lastonedown86/lwc-convert/compare/v1.3.4...v1.3.5) (2026-01-26)
+
+
+### Bug Fixes
+
+* quote glob patterns in npm scripts for cross-platform compatibility ([6783e58](https://github.com/Lastonedown86/lwc-convert/commit/6783e580f53a4e7ccd811d1c7822c9dc98c95d0c))
+
 ## [1.3.4](https://github.com/Lastonedown86/lwc-convert/compare/v1.3.3...v1.3.4) (2026-01-26)
 
 
