@@ -140,7 +140,7 @@ export class AuraGrader {
     }
 
     private scoreStyling(style: string): CategoryScore {
-        let score = 100;
+        const score = 100;
         const factors: string[] = [];
 
         if (style.includes('.THIS')) {

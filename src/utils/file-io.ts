@@ -2,7 +2,7 @@
  * File I/O utilities for reading and writing component files
  */
 
-import * as fs from 'fs-extra';
+import fs from 'fs-extra';
 import * as path from 'path';
 import { logger } from './logger';
 

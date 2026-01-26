@@ -1,1 +1,3 @@
+#!/usr/bin/env sh
+export PATH="$PATH:$(dirname "$0")/../node_modules/.bin"
 npx --no -- commitlint --edit $1

@@ -8,21 +8,37 @@ import { useKeyBindings } from '../hooks/useKeyBindings.js';
 import { discoverComponents } from '../utils/discovery.js';
 import type { KeyBinding, GradeLevel } from '../types.js';
 
+// Helper to pad text to fixed width to prevent Ink rendering artifacts
+const padText = (text: string, width: number): string => {
+  return text.padEnd(width, ' ');
+};
+
 export function Dashboard(): React.ReactElement {
   const preferences = useStore((state) => state.preferences);
   const navigate = useStore((state) => state.navigate);
   const projectPath = useStore((state) => state.projectPath);
   const projectHealth = useStore((state) => state.projectHealth);
   const recentConversions = useStore((state) => state.recentConversions);
+  const auraComponents = useStore((state) => state.auraComponents);
+  const vfComponents = useStore((state) => state.vfComponents);
   const setComponents = useStore((state) => state.setComponents);
   const setProjectHealth = useStore((state) => state.setProjectHealth);
 
   const theme = getTheme(preferences.theme);
-  const [isLoading, setIsLoading] = useState(true);
+  // Start not loading if we already have data
+  const hasData = auraComponents.length > 0 || vfComponents.length > 0 || projectHealth !== null;
+  const [isLoading, setIsLoading] = useState(!hasData);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  // Discover components on mount
+  // Discover components on mount or when refreshKey changes
   useEffect(() => {
     const loadComponents = async (): Promise<void> => {
+      // Skip if we already have data and this is not a manual refresh
+      if (hasData && refreshKey === 0) {
+        return;
+      }
+
+      setIsLoading(true);
       try {
         const discovered = await discoverComponents(projectPath);
         setComponents(discovered.aura, discovered.vf);
@@ -41,18 +57,26 @@ export function Dashboard(): React.ReactElement {
     };
 
     loadComponents();
-  }, [projectPath, setComponents, setProjectHealth]);
+  }, [projectPath, refreshKey]);
+
+  const refresh = (): void => {
+    setRefreshKey((prev) => prev + 1);
+  };
 
   const footerBindings: KeyBinding[] = [
     { key: 'c', action: () => navigate('wizard'), description: 'Convert' },
     { key: 'g', action: () => navigate('grading'), description: 'Grade' },
     { key: 'b', action: () => navigate('browser'), description: 'Browse' },
     { key: 's', action: () => navigate('settings'), description: 'Settings' },
+    { key: 'r', action: refresh, description: 'Refresh' },
   ];
 
   useKeyBindings(footerBindings);
 
   const projectName = projectPath.split('/').pop() || 'Unknown Project';
+
+  // Fixed width for text content inside 30-char wide boxes (minus padding/borders)
+  const textWidth = 24;
 
   return (
     <Screen title="Dashboard" footerBindings={footerBindings}>
@@ -60,13 +84,15 @@ export function Dashboard(): React.ReactElement {
         {/* Welcome message */}
         <Box flexDirection="column" marginBottom={1}>
           <Text color={theme.text} bold>
-            Welcome to LWC Convert
+            {padText('Welcome to LWC Convert', 40)}
           </Text>
-          <Text color={theme.textMuted}>Project: {projectName}</Text>
+          <Text color={theme.textMuted}>{padText(`Project: ${projectName}`, 40)}</Text>
         </Box>
 
         {isLoading ? (
-          <Spinner label="Scanning project for components..." />
+          <Box height={10}>
+            <Spinner label="Scanning project for components..." />
+          </Box>
         ) : (
           <Box flexDirection="row" gap={4}>
             {/* Quick Actions */}
@@ -79,20 +105,20 @@ export function Dashboard(): React.ReactElement {
               width={30}
             >
               <Text color={theme.primary} bold>
-                Quick Actions
+                {padText('Quick Actions', textWidth)}
               </Text>
               <Box flexDirection="column" marginTop={1}>
                 <Text color={theme.text}>
-                  <Text color={theme.accent}>[C]</Text> Convert Component
+                  <Text color={theme.accent}>[C]</Text>{padText(' Convert Component', textWidth - 3)}
                 </Text>
                 <Text color={theme.text}>
-                  <Text color={theme.accent}>[G]</Text> Grade Complexity
+                  <Text color={theme.accent}>[G]</Text>{padText(' Grade Complexity', textWidth - 3)}
                 </Text>
                 <Text color={theme.text}>
-                  <Text color={theme.accent}>[B]</Text> Browse Components
+                  <Text color={theme.accent}>[B]</Text>{padText(' Browse Components', textWidth - 3)}
                 </Text>
                 <Text color={theme.text}>
-                  <Text color={theme.accent}>[S]</Text> Settings
+                  <Text color={theme.accent}>[S]</Text>{padText(' Settings', textWidth - 3)}
                 </Text>
               </Box>
             </Box>
@@ -107,26 +133,26 @@ export function Dashboard(): React.ReactElement {
               width={30}
             >
               <Text color={theme.primary} bold>
-                Project Health
+                {padText('Project Health', textWidth)}
               </Text>
               <Box flexDirection="column" marginTop={1}>
                 {projectHealth ? (
-                  <>
+                  <Box flexDirection="column">
                     <Text color={theme.text}>
-                      Aura: {projectHealth.auraCount} components
+                      {padText(`Aura: ${projectHealth.auraCount}`, textWidth)}
                     </Text>
                     <Text color={theme.text}>
-                      VF: {projectHealth.vfCount} pages
+                      {padText(`VF: ${projectHealth.vfCount}`, textWidth)}
                     </Text>
                     <Text color={theme.text}>
-                      Avg Grade: {projectHealth.avgGrade} ({projectHealth.avgScore})
+                      {padText(`Grade: ${projectHealth.avgGrade} (${projectHealth.avgScore})`, textWidth)}
                     </Text>
                     <Text color={theme.text}>
-                      Ready: {projectHealth.readyToConvert}
+                      {padText(`Ready: ${projectHealth.readyToConvert}`, textWidth)}
                     </Text>
-                  </>
+                  </Box>
                 ) : (
-                  <Text color={theme.textMuted}>No components found</Text>
+                  <Text color={theme.textMuted}>{padText('No components found', textWidth)}</Text>
                 )}
               </Box>
             </Box>
@@ -172,7 +198,7 @@ export function Dashboard(): React.ReactElement {
         {/* Tip */}
         <Box marginTop={1}>
           <Text color={theme.textMuted}>
-            Tip: Press <Text color={theme.accent}>Ctrl+K</Text> to open the command palette
+            Tip: Press <Text color={theme.accent}>/</Text> to open the command palette
           </Text>
         </Box>
       </Box>

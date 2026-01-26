@@ -116,6 +116,9 @@ export function ComponentBrowser(): React.ReactElement {
   }, [treeData, browser.expandedNodes]);
 
   const selectedIndex = flatNodes.findIndex((n) => n.id === selectedId);
+  
+  // Calculate visible rows for scrolling (limit to prevent overflow)
+  const maxVisibleRows = Math.min(visibleRows, 10);
 
   const footerBindings: KeyBinding[] = [
     { key: 'escape', action: () => isSearching ? setIsSearching(false) : goBack(), description: 'Back' },
@@ -151,6 +154,10 @@ export function ComponentBrowser(): React.ReactElement {
       action: () => {
         const newIndex = Math.max(0, selectedIndex - 1);
         setSelectedId(flatNodes[newIndex]?.id || null);
+        // Adjust scroll offset to keep selection visible
+        if (newIndex < browser.scrollOffset) {
+          updateBrowserState({ scrollOffset: newIndex });
+        }
       },
       description: 'Up',
     },
@@ -159,6 +166,10 @@ export function ComponentBrowser(): React.ReactElement {
       action: () => {
         const newIndex = Math.min(flatNodes.length - 1, selectedIndex + 1);
         setSelectedId(flatNodes[newIndex]?.id || null);
+        // Adjust scroll offset to keep selection visible
+        if (newIndex >= browser.scrollOffset + maxVisibleRows) {
+          updateBrowserState({ scrollOffset: newIndex - maxVisibleRows + 1 });
+        }
       },
       description: 'Down',
     },
@@ -203,13 +214,18 @@ export function ComponentBrowser(): React.ReactElement {
           borderColor={theme.border}
           flexDirection="column"
           paddingX={1}
+          paddingY={1}
+          minHeight={5}
         >
           {treeData.length === 0 ? (
-            <Box paddingY={1}>
+            <Box flexDirection="column">
               <Text color={theme.textMuted}>
                 {browser.searchQuery
                   ? 'No components match your search'
-                  : 'No components found in this project'}
+                  : 'No Aura or Visualforce components found.'}
+              </Text>
+              <Text color={theme.textMuted}>
+                {!browser.searchQuery && 'Try pointing to a Salesforce project directory.'}
               </Text>
             </Box>
           ) : (
@@ -217,7 +233,7 @@ export function ComponentBrowser(): React.ReactElement {
               data={treeData}
               expandedIds={browser.expandedNodes}
               selectedId={selectedId || undefined}
-              maxRows={visibleRows}
+              maxRows={maxVisibleRows}
               scrollOffset={browser.scrollOffset}
             />
           )}

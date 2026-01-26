@@ -96,7 +96,7 @@ function convertExpression(
     // Check for negation operator (!) but not at start of simple property (e.g., !v.isTrue)
     /[^{]!/.test(innerExpr) ||
     // Check for math but exclude property paths like v.obj-name
-    /\s[\+\-\*\/]\s/.test(innerExpr) ||
+    /\s[+\-*/]\s/.test(innerExpr) ||
     innerExpr.includes('==') ||
     innerExpr.includes('!=') ||
     innerExpr.includes('>=') ||

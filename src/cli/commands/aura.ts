@@ -25,15 +25,12 @@ export async function convertAura(
   const resolved = await resolveAuraPath(inputPath);
   
   if (!resolved.found) {
-    logger.error(`Component not found: ${inputPath}`);
-    if (resolved.searchedLocations && resolved.searchedLocations.length > 0) {
-      logger.subheader('Searched in:');
-      console.log(formatSearchLocations(resolved.searchedLocations, process.cwd()));
-    }
-    logger.blank();
-    logger.info('Tip: You can provide just the component name (e.g., "AccountCard")');
-    logger.info('     or a full path (e.g., "./force-app/main/default/aura/AccountCard")');
-    process.exit(1);
+    const searchInfo = resolved.searchedLocations && resolved.searchedLocations.length > 0
+      ? `\nSearched in:\n${formatSearchLocations(resolved.searchedLocations, process.cwd())}`
+      : '';
+    throw new Error(
+      `Component not found: ${inputPath}${searchInfo}\n\nTip: You can provide just the component name (e.g., "AccountCard") or a full path (e.g., "./force-app/main/default/aura/AccountCard")`
+    );
   }
 
   const bundlePath = resolved.path;
@@ -49,8 +46,7 @@ export async function convertAura(
   }
   logger.divider();
 
-  try {
-    // Step 1: Read Aura bundle
+  // Step 1: Read Aura bundle
     logger.step(1, 'Reading Aura component bundle...');
     const bundle = await readAuraBundle(bundlePath);
     logger.success(`Read component: ${bundle.name}`);
@@ -231,11 +227,4 @@ export async function convertAura(
       logger.info('Opening output folder...');
       await openFolder(outputDir);
     }
-  } catch (error: any) {
-    logger.error(error.message);
-    if (options.verbose && error.stack) {
-      console.error(error.stack);
-    }
-    process.exit(1);
-  }
 }

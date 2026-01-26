@@ -321,6 +321,7 @@ export function parseAuraMarkup(markup: string, componentName: string): ParsedAu
  * Serialize DOM nodes back to string (for debugging)
  */
 export function serializeNodes(nodes: Node[]): string {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { render } = require('dom-serializer');
   return render(nodes, { xmlMode: true });
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Box, Text } from 'ink';
 import { Screen } from '../components/layout/Screen.js';
 import { StepIndicator } from '../components/navigation/Breadcrumbs.js';
@@ -8,7 +8,8 @@ import { Spinner } from '../components/feedback/Spinner.js';
 import { useStore } from '../store/index.js';
 import { getTheme } from '../themes/index.js';
 import { useKeyBindings } from '../hooks/useKeyBindings.js';
-import type { KeyBinding, ConversionMode, ComponentType } from '../types.js';
+import { useTerminalSize, useVisibleRows } from '../hooks/useTerminalSize.js';
+import type { KeyBinding, ConversionMode, ComponentType, ComponentInfo } from '../types.js';
 
 const WIZARD_STEPS = ['Source', 'Config', 'Options', 'Review'];
 
@@ -20,16 +21,29 @@ export function ConversionWizard(): React.ReactElement {
   const updateWizardState = useStore((state) => state.updateWizardState);
   const resetWizard = useStore((state) => state.resetWizard);
   const addRecentConversion = useStore((state) => state.addRecentConversion);
+  const auraComponents = useStore((state) => state.auraComponents);
+  const vfComponents = useStore((state) => state.vfComponents);
 
   const theme = getTheme(preferences.theme);
   const [focusedField, setFocusedField] = useState(0);
   const [isConverting, setIsConverting] = useState(false);
   const [conversionError, setConversionError] = useState<string | null>(null);
+  const [selectedComponentIndex, setSelectedComponentIndex] = useState(0);
+  const [componentListScrollOffset, setComponentListScrollOffset] = useState(0);
+
+  // Get components based on source type
+  const currentComponents = useMemo(() => {
+    if (wizard.sourceType === 'aura') return auraComponents;
+    if (wizard.sourceType === 'vf') return vfComponents;
+    return [];
+  }, [wizard.sourceType, auraComponents, vfComponents]);
+
+  const componentListVisibleRows = 5;
 
   const canGoNext = (): boolean => {
     switch (wizard.currentStep) {
       case 0: // Source
-        return wizard.sourceType !== null && wizard.sourcePath.length > 0;
+        return wizard.sourcePath.length > 0;
       case 1: // Config
         return true; // Mode always has a default
       case 2: // Options
@@ -42,12 +56,41 @@ export function ConversionWizard(): React.ReactElement {
   };
 
   const handleNext = async (): Promise<void> => {
+    // Ensure sourceType has a default value
+    if (wizard.currentStep === 0 && !wizard.sourceType) {
+      updateWizardState({ sourceType: 'aura' });
+    }
+    
     if (wizard.currentStep < WIZARD_STEPS.length - 1) {
       updateWizardState({ currentStep: wizard.currentStep + 1 });
       setFocusedField(0);
     } else {
       // Execute conversion
       await executeConversion();
+    }
+  };
+
+  const handleEnter = (): void => {
+    // If on a radio group field, select the current option and move to next field
+    if (wizard.currentStep === 0 && focusedField === 0) {
+      // Set sourceType if not already set
+      if (!wizard.sourceType) {
+        updateWizardState({ sourceType: 'aura' });
+      }
+      // Move to component list if available, otherwise to path input
+      setFocusedField(currentComponents.length > 0 ? 2 : 1);
+    } else if (wizard.currentStep === 0 && focusedField === 2) {
+      // Select component from list
+      const selectedComponent = currentComponents[selectedComponentIndex];
+      if (selectedComponent) {
+        updateWizardState({ sourcePath: selectedComponent.path });
+        setFocusedField(1); // Move to path input to show selection
+      }
+    } else if (wizard.currentStep === 1 && focusedField === 0) {
+      // Move to next step since mode is already selected
+      handleNext();
+    } else if (canGoNext()) {
+      handleNext();
     }
   };
 
@@ -112,19 +155,94 @@ export function ConversionWizard(): React.ReactElement {
     }
   };
 
+  // Calculate max fields per step for navigation
+  const getMaxFields = (): number => {
+    switch (wizard.currentStep) {
+      case 0: // Source - radio group (0), path input (1), component list (2) if available
+        return currentComponents.length > 0 ? 2 : 1;
+      case 1: // Config - radio group only (field 0)
+        return 0;
+      case 2: // Options - output dir (field 0) + 2 checkboxes (fields 1, 2)
+        return 2;
+      case 3: // Review - no fields
+        return 0;
+      default:
+        return 0;
+    }
+  };
+
+  // Handle up/down for radio group selection
+  const handleArrowUp = (): void => {
+    if (wizard.currentStep === 0 && focusedField === 0) {
+      // Toggle between aura/vf
+      updateWizardState({ sourceType: 'aura' });
+      // Reset component selection when changing type
+      setSelectedComponentIndex(0);
+      setComponentListScrollOffset(0);
+    } else if (wizard.currentStep === 0 && focusedField === 2) {
+      // Scroll component list up
+      if (selectedComponentIndex > 0) {
+        const newIndex = selectedComponentIndex - 1;
+        setSelectedComponentIndex(newIndex);
+        // Adjust scroll offset to keep selection visible
+        if (newIndex < componentListScrollOffset) {
+          setComponentListScrollOffset(newIndex);
+        }
+      }
+    } else if (wizard.currentStep === 1 && focusedField === 0) {
+      // Toggle conversion mode
+      updateWizardState({ conversionMode: 'scaffolding' });
+    } else {
+      setFocusedField((f) => Math.max(f - 1, 0));
+    }
+  };
+
+  const handleArrowDown = (): void => {
+    if (wizard.currentStep === 0 && focusedField === 0) {
+      // Toggle between aura/vf
+      updateWizardState({ sourceType: 'vf' });
+      // Reset component selection when changing type
+      setSelectedComponentIndex(0);
+      setComponentListScrollOffset(0);
+    } else if (wizard.currentStep === 0 && focusedField === 2) {
+      // Scroll component list down
+      if (selectedComponentIndex < currentComponents.length - 1) {
+        const newIndex = selectedComponentIndex + 1;
+        setSelectedComponentIndex(newIndex);
+        // Adjust scroll offset to keep selection visible
+        if (newIndex >= componentListScrollOffset + componentListVisibleRows) {
+          setComponentListScrollOffset(newIndex - componentListVisibleRows + 1);
+        }
+      }
+    } else if (wizard.currentStep === 1 && focusedField === 0) {
+      // Toggle conversion mode
+      updateWizardState({ conversionMode: 'full' });
+    } else {
+      setFocusedField((f) => Math.min(f + 1, getMaxFields()));
+    }
+  };
+
   const footerBindings: KeyBinding[] = [
     { key: 'escape', action: handlePrev, description: wizard.currentStep === 0 ? 'Cancel' : 'Back' },
     {
       key: 'return',
-      action: () => {
-        if (canGoNext()) handleNext();
-      },
+      action: handleEnter,
       description: wizard.currentStep === WIZARD_STEPS.length - 1 ? 'Convert' : 'Next',
     },
     {
       key: 'tab',
-      action: () => setFocusedField((f) => f + 1),
+      action: () => setFocusedField((f) => Math.min(f + 1, getMaxFields())),
       description: 'Next Field',
+    },
+    {
+      key: 'up',
+      action: handleArrowUp,
+      description: 'Up',
+    },
+    {
+      key: 'down',
+      action: handleArrowDown,
+      description: 'Down',
     },
   ];
 
@@ -177,8 +295,19 @@ export function ConversionWizard(): React.ReactElement {
               sourceType={wizard.sourceType}
               sourcePath={wizard.sourcePath}
               focusedField={focusedField}
-              onSourceTypeChange={(type) => updateWizardState({ sourceType: type })}
+              selectedComponentIndex={selectedComponentIndex}
+              componentListScrollOffset={componentListScrollOffset}
+              onSourceTypeChange={(type) => {
+                updateWizardState({ sourceType: type });
+                setSelectedComponentIndex(0);
+                setComponentListScrollOffset(0);
+              }}
               onSourcePathChange={(path) => updateWizardState({ sourcePath: path })}
+              onComponentSelect={(component) => {
+                updateWizardState({ sourcePath: component.path });
+              }}
+              onSelectedIndexChange={setSelectedComponentIndex}
+              onScrollOffsetChange={setComponentListScrollOffset}
             />
           )}
 
@@ -223,19 +352,54 @@ interface SourceStepProps {
   sourceType: ComponentType | null;
   sourcePath: string;
   focusedField: number;
+  selectedComponentIndex: number;
+  componentListScrollOffset: number;
   onSourceTypeChange: (type: ComponentType) => void;
   onSourcePathChange: (path: string) => void;
+  onComponentSelect: (component: ComponentInfo) => void;
+  onSelectedIndexChange: (index: number) => void;
+  onScrollOffsetChange: (offset: number) => void;
 }
 
 function SourceStep({
   sourceType,
   sourcePath,
   focusedField,
+  selectedComponentIndex,
+  componentListScrollOffset,
   onSourceTypeChange,
   onSourcePathChange,
+  onComponentSelect,
+  onSelectedIndexChange,
+  onScrollOffsetChange,
 }: SourceStepProps): React.ReactElement {
   const preferences = useStore((state) => state.preferences);
+  const auraComponents = useStore((state) => state.auraComponents);
+  const vfComponents = useStore((state) => state.vfComponents);
   const theme = getTheme(preferences.theme);
+  const { columns } = useTerminalSize();
+
+  // Filter components based on selected type
+  const components = useMemo(() => {
+    if (sourceType === 'aura') return auraComponents;
+    if (sourceType === 'vf') return vfComponents;
+    return [];
+  }, [sourceType, auraComponents, vfComponents]);
+
+  // When field 0 is focused, highlight the currently selected radio
+  const radioIndex = sourceType === 'vf' ? 1 : 0;
+  
+  // Visible rows for component list
+  const visibleRows = 5;
+  
+  // Calculate available width for component names (account for borders, padding, selector)
+  const listWidth = Math.max(columns - 12, 40); // 12 = borders + padding + margins
+  
+  // Use the scroll offset directly from parent (which keeps it in sync with selection)
+  const visibleComponents = useMemo(() => 
+    components.slice(componentListScrollOffset, componentListScrollOffset + visibleRows),
+    [components, componentListScrollOffset, visibleRows]
+  );
 
   return (
     <Box flexDirection="column">
@@ -245,7 +409,7 @@ function SourceStep({
 
       <Box flexDirection="column" marginTop={1}>
         <Text color={theme.text} bold>
-          Component Type
+          Component Type {focusedField === 0 && <Text color={theme.accent}>(↑↓ to select, Enter to confirm)</Text>}
         </Text>
         <RadioGroup
           options={[
@@ -254,13 +418,49 @@ function SourceStep({
           ]}
           value={sourceType || 'aura'}
           onChange={onSourceTypeChange}
-          focusedIndex={focusedField === 0 ? 0 : -1}
+          focusedIndex={focusedField === 0 ? radioIndex : -1}
         />
       </Box>
 
+      {/* Component List - shown after selecting type */}
+      {sourceType && components.length > 0 && (
+        <Box flexDirection="column" marginTop={1}>
+          <Box flexDirection="row" justifyContent="space-between">
+            <Text color={theme.text} bold>
+              Select Component {focusedField === 2 && <Text color={theme.accent}>(↑↓ to select, Enter to choose)</Text>}
+            </Text>
+            {components.length > visibleRows && (
+              <Text color={theme.textMuted}>
+                {componentListScrollOffset + 1}-{Math.min(componentListScrollOffset + visibleRows, components.length)} of {components.length}
+              </Text>
+            )}
+          </Box>
+          <Box 
+            flexDirection="column" 
+            borderStyle="single" 
+            borderColor={focusedField === 2 ? theme.accent : theme.border}
+            paddingX={1}
+            marginTop={1}
+            height={visibleRows + 2}
+            overflow="hidden"
+          >
+            <Text>
+              {visibleComponents.slice(0, visibleRows).map((comp, idx) => {
+                const actualIndex = componentListScrollOffset + idx;
+                const isSelected = actualIndex === selectedComponentIndex;
+                const selector = isSelected ? '▶' : ' ';
+                const gradeText = comp.grade ? ` [${comp.grade}]` : '';
+                const displayText = `${selector} ${comp.name}${gradeText}`;
+                return displayText.padEnd(listWidth, ' ');
+              }).join('\n')}
+            </Text>
+          </Box>
+        </Box>
+      )}
+
       <Box flexDirection="column" marginTop={1}>
         <TextInput
-          label="Component Path"
+          label={`Component Path ${focusedField === 1 ? '(type path or select from list above)' : ''}`}
           value={sourcePath}
           onChange={onSourcePathChange}
           placeholder="Enter path to component..."

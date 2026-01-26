@@ -2,7 +2,7 @@
  * CLI command handler for dependency graph analysis
  */
 
-import * as fs from 'fs-extra';
+import fs from 'fs-extra';
 import * as path from 'path';
 import { logger } from '../../utils/logger';
 import { DependencyAnalyzer } from '../../dependency-graph/analyzer';
@@ -75,7 +75,7 @@ export async function analyzeDeps(
     let output: string | undefined;
 
     switch (options.format) {
-      case 'json':
+      case 'json': {
         const jsonOutput = formatJsonOutput(graph, conversionOrder);
         output = serializeJson(jsonOutput);
         if (options.output) {
@@ -85,6 +85,7 @@ export async function analyzeDeps(
           console.log(output);
         }
         break;
+      }
 
       case 'mermaid':
         // Use simplified output for large graphs

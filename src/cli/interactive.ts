@@ -6,7 +6,7 @@
 import * as p from '@clack/prompts';
 import color from 'picocolors';
 import * as path from 'path';
-import * as fs from 'fs-extra';
+import fs from 'fs-extra';
 import { DEFAULT_OUTPUT_DIR } from './options';
 import {
   findVfControllers,
@@ -187,6 +187,7 @@ function clearScreen(): void {
   const isWindows = process.platform === 'win32';
   if (isWindows) {
     // Synchronously execute cls on Windows
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     require('child_process').execSync('cls', { stdio: 'inherit' });
   } else {
     // Use ANSI escape codes on Unix-like systems

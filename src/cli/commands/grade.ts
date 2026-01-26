@@ -1,5 +1,5 @@
 import * as path from 'path';
-import * as fs from 'fs-extra';
+import fs from 'fs-extra';
 import { logger } from '../../utils/logger';
 import { Grader } from '../../grading/grader';
 import { GradingOptions, ComponentGrade, GradingSummary } from '../../grading/types';
@@ -122,13 +122,14 @@ function sortResults(results: ComponentGrade[], sortBy: string) {
         case 'score':
             results.sort((a, b) => b.overallScore - a.overallScore);
             break;
-        case 'complexity':
+        case 'complexity': {
             // Map complexity to number
             const complexityMap: Record<string, number> = {
                 'Simple': 1, 'Easy': 2, 'Moderate': 3, 'Complex': 4, 'Very Complex': 5
             };
             results.sort((a, b) => complexityMap[a.complexity] - complexityMap[b.complexity]);
             break;
+        }
         case 'name':
             results.sort((a, b) => a.componentName.localeCompare(b.componentName));
             break;

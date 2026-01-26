@@ -7,7 +7,7 @@
  * - Interface implementations and extensions
  */
 
-import * as fs from 'fs-extra';
+import fs from 'fs-extra';
 import * as path from 'path';
 import * as htmlparser2 from 'htmlparser2';
 import { DomHandler, Element, Node } from 'domhandler';

@@ -14,7 +14,7 @@ interface KeyboardShortcut {
 const globalShortcuts: KeyboardShortcut[] = [
   { key: '?', description: 'Show this help' },
   { key: 'S', description: 'Open Settings' },
-  { key: 'Ctrl+K', description: 'Command Palette' },
+  { key: '/', description: 'Command Palette' },
   { key: 'Esc', description: 'Go back / Close modal' },
   { key: 'Q', description: 'Quit application' },
   { key: 'Tab', description: 'Next focusable element' },

@@ -47,9 +47,8 @@ export interface ConversionOptions {
   controller?: string;
 }
 
-export interface AuraConversionOptions extends ConversionOptions {
-  // Aura-specific options can be added here
-}
+// Type alias for Aura-specific options (can be extended later)
+export type AuraConversionOptions = ConversionOptions;
 
 export interface VfConversionOptions extends ConversionOptions {
   controller?: string;

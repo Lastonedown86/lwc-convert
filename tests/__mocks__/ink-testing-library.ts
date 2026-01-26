@@ -2,117 +2,94 @@
  * Mock for ink-testing-library
  *
  * This provides a simplified render function for testing Ink components.
- * It extracts text content from React elements for assertions.
+ * Uses react-test-renderer to properly support React hooks.
  */
 
 import React from 'react';
+import TestRenderer from 'react-test-renderer';
 
-// Recursively extract text content from React elements
-const extractText = (el: unknown): string => {
-  if (typeof el === 'string') return el;
-  if (typeof el === 'number') return String(el);
-  if (el === null || el === undefined || el === false) return '';
+// Recursively extract text content from a test renderer instance
+const extractTextFromInstance = (instance: TestRenderer.ReactTestInstance | null): string => {
+  if (!instance) return '';
 
-  if (Array.isArray(el)) {
-    return el.map(extractText).join('');
-  }
+  let text = '';
 
-  // Handle React elements (including those with custom type strings like 'ink-box')
-  if (React.isValidElement(el)) {
-    const props = el.props as Record<string, unknown>;
-    let text = '';
-
-    // Extract text from children - this is the main source of text
-    if (props.children !== undefined) {
-      text += extractText(props.children);
-    }
-
-    // If no children text found, check for text-like props
-    if (!text) {
-      if (typeof props.label === 'string') {
-        text += props.label;
-      }
-      if (typeof props.value === 'string') {
-        text += props.value;
+  // Check for text children (strings/numbers)
+  if (instance.children) {
+    for (const child of instance.children) {
+      if (typeof child === 'string') {
+        text += child;
+      } else if (typeof child === 'number') {
+        text += String(child);
+      } else if (typeof child === 'object' && child !== null) {
+        // Recursively extract from child instances
+        text += extractTextFromInstance(child as TestRenderer.ReactTestInstance);
       }
     }
-
-    return text;
   }
 
-  // Handle plain objects with children property
-  if (typeof el === 'object' && el !== null) {
-    const obj = el as { props?: { children?: unknown }; children?: unknown; type?: unknown };
-
-    // Handle objects that look like React elements but aren't detected as such
-    if (obj.props?.children !== undefined) {
-      return extractText(obj.props.children);
+  // Also check props for label/value (common in ink components)
+  if (instance.props) {
+    if (typeof instance.props.label === 'string' && !text) {
+      text += instance.props.label;
     }
-    if (obj.children !== undefined) {
-      return extractText(obj.children);
+    if (typeof instance.props.value === 'string' && !text) {
+      text += instance.props.value;
     }
   }
 
-  return '';
+  return text;
 };
 
-// Recursively render a React element to get its output
-const renderElement = (el: unknown): unknown => {
-  if (typeof el === 'string' || typeof el === 'number' || el === null || el === undefined || el === false) {
-    return el;
-  }
-
-  if (Array.isArray(el)) {
-    return el.map(renderElement);
-  }
-
-  if (React.isValidElement(el)) {
-    const element = el as React.ReactElement<any>;
-    const { type, props } = element;
-
-    // If it's a function component, call it to get the rendered output
-    if (typeof type === 'function') {
-      try {
-        const Component = type as React.FC<any>;
-        const rendered = Component(props);
-        return renderElement(rendered);
-      } catch {
-        // If the component throws, just return what we can extract from props
-        return renderElement(props.children);
-      }
-    }
-
-    // For intrinsic elements (like 'ink-box', 'ink-text', or 'div'), render children
-    if (props.children !== undefined) {
-      return {
-        ...element,
-        props: {
-          ...props,
-          children: renderElement(props.children),
-        },
-      };
-    }
-  }
-
-  return el;
+// Extract all text from a rendered tree
+const extractText = (renderer: TestRenderer.ReactTestRenderer): string => {
+  const root = renderer.root;
+  return extractTextFromInstance(root);
 };
 
 export const render = (element: React.ReactElement) => {
-  // First render the element tree to resolve function components
-  const rendered = renderElement(element);
-  // Then extract text from the rendered tree
-  const output = extractText(rendered);
+  let renderer: TestRenderer.ReactTestRenderer;
+
+  // Use act to properly handle React updates
+  TestRenderer.act(() => {
+    renderer = TestRenderer.create(element);
+  });
 
   return {
-    lastFrame: () => output,
-    frames: [output],
-    unmount: () => {},
-    rerender: (el: React.ReactElement) => extractText(renderElement(el)),
+    lastFrame: () => {
+      try {
+        return extractText(renderer!);
+      } catch {
+        return '';
+      }
+    },
+    frames: [],
+    unmount: () => {
+      TestRenderer.act(() => {
+        renderer?.unmount();
+      });
+    },
+    rerender: (el: React.ReactElement) => {
+      TestRenderer.act(() => {
+        renderer?.update(el);
+      });
+      try {
+        return extractText(renderer!);
+      } catch {
+        return '';
+      }
+    },
     stdin: {
       write: () => {},
     },
     stdout: {
-      lastFrame: () => output,
+      lastFrame: () => {
+        try {
+          return extractText(renderer!);
+        } catch {
+          return '';
+        }
+      },
     },
   };
 };

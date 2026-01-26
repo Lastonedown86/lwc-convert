@@ -344,7 +344,7 @@ export function generateDataTableColumns(
 
       const value = child.attributes.value || '';
       const varName = tableComponent.attributes.var || 'item';
-      let fieldName = value.replace(/\{!|\}/g, '').replace(`${varName}.`, '');
+      const fieldName = value.replace(/\{!|\}/g, '').replace(`${varName}.`, '');
 
       // Handle action columns
       if (child.children.some((c) => c.name.toLowerCase().includes('command'))) {

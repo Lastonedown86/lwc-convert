@@ -319,12 +319,13 @@ function sortComponents(components: ComponentGrade[], sortBy: string): void {
     case 'name':
       components.sort((a, b) => a.componentName.localeCompare(b.componentName));
       break;
-    case 'complexity':
+    case 'complexity': {
       const complexityOrder: Record<string, number> = {
         'Very Complex': 0, 'Complex': 1, 'Moderate': 2, 'Easy': 3, 'Simple': 4
       };
       components.sort((a, b) => complexityOrder[a.complexity] - complexityOrder[b.complexity]);
       break;
+    }
     case 'type':
       components.sort((a, b) => a.componentType.localeCompare(b.componentType));
       break;
