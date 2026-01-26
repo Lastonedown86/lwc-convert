@@ -36,7 +36,9 @@
     "converter",
     "migration",
     "lightning-web-components",
-    "cli"
+    "cli",
+    "tui",
+    "interactive"
   ],
   "author": "lwc-convert contributors",
   "license": "MIT",
