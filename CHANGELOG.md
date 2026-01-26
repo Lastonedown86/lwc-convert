@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.4](https://github.com/Lastonedown86/lwc-convert/compare/v1.3.3...v1.3.4) (2026-01-26)
+
+
+### Bug Fixes
+
+* use tsx instead of ts-node for dev script ([d1728db](https://github.com/Lastonedown86/lwc-convert/commit/d1728dbb74ddf8374a7fb79c93ac3057d7d37412))
+
 ## [1.3.3](https://github.com/Lastonedown86/lwc-convert/compare/v1.3.2...v1.3.3) (2026-01-26)
 
 
