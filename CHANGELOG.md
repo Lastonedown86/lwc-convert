@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.3](https://github.com/Lastonedown86/lwc-convert/compare/v1.3.2...v1.3.3) (2026-01-26)
+
+
+### Bug Fixes
+
+* switch to tsup bundler for ESM compatibility ([1aab5bf](https://github.com/Lastonedown86/lwc-convert/commit/1aab5bff9d3791e5161ef281c17917d0c26d0efd))
+
 ## [1.3.2](https://github.com/Lastonedown86/lwc-convert/compare/v1.3.1...v1.3.2) (2026-01-26)
 
 
