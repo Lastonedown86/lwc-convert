@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useMemo } from 'react';
 
 export interface TerminalSize {
   columns: number;
@@ -9,8 +9,14 @@ export interface TerminalSize {
 const HEADER_ROWS = 2;
 const FOOTER_ROWS = 2;
 
+/**
+ * Get terminal size at component mount time.
+ * Does NOT react to resize events - this is intentional to prevent
+ * disorienting re-renders when the terminal is resized.
+ */
 export function useTerminalSize(): TerminalSize {
-  const [size, setSize] = useState<TerminalSize>(() => {
+  // Capture size once at mount - don't react to resize
+  const size = useMemo<TerminalSize>(() => {
     const columns = process.stdout.columns || 80;
     const rows = process.stdout.rows || 24;
     return {
@@ -18,25 +24,7 @@ export function useTerminalSize(): TerminalSize {
       rows,
       contentRows: rows - HEADER_ROWS - FOOTER_ROWS,
     };
-  });
-
-  useEffect(() => {
-    const handleResize = (): void => {
-      const columns = process.stdout.columns || 80;
-      const rows = process.stdout.rows || 24;
-      setSize({
-        columns,
-        rows,
-        contentRows: rows - HEADER_ROWS - FOOTER_ROWS,
-      });
-    };
-
-    process.stdout.on('resize', handleResize);
-
-    return () => {
-      process.stdout.off('resize', handleResize);
-    };
-  }, []);
+  }, []); // Empty deps = only computed once
 
   return size;
 }
