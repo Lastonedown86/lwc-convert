@@ -3,14 +3,35 @@
  */
 
 import { readFileSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
 // Read version from package.json to keep in sync
 function getPackageVersion(): string {
+  // Use build-time injected version if available
+  if (process.env.CLI_VERSION) {
+    return process.env.CLI_VERSION;
+  }
+
   try {
-    const packagePath = join(__dirname, '..', '..', 'package.json');
-    const packageJson = JSON.parse(readFileSync(packagePath, 'utf-8'));
-    return packageJson.version;
+    // Try multiple paths to find package.json
+    const possiblePaths = [
+      join(__dirname, '..', '..', 'package.json'),
+      join(__dirname, '..', 'package.json'),
+      join(process.cwd(), 'package.json'),
+    ];
+
+    for (const packagePath of possiblePaths) {
+      try {
+        const packageJson = JSON.parse(readFileSync(packagePath, 'utf-8'));
+        if (packageJson.name === 'lwc-convert') {
+          return packageJson.version;
+        }
+      } catch {
+        continue;
+      }
+    }
+    return '0.0.0';
   } catch {
     return '0.0.0';
   }
