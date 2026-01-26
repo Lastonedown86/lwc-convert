@@ -190,7 +190,7 @@ function extractExpressionDependencies(
 
   lines.forEach((line, lineNum) => {
     // $Resource references
-    const resourceMatches = line.matchAll(/\{\!\$Resource\.([^}]+)\}/g);
+    const resourceMatches = line.matchAll(/\{!\$Resource\.([^}]+)\}/g);
     for (const match of resourceMatches) {
       addDependency({
         target: `resource:${match[1]}`,
@@ -201,7 +201,7 @@ function extractExpressionDependencies(
     }
 
     // $Label references
-    const labelMatches = line.matchAll(/\{\!\$Label\.([^}]+)\}/g);
+    const labelMatches = line.matchAll(/\{!\$Label\.([^}]+)\}/g);
     for (const match of labelMatches) {
       addDependency({
         target: `label:${match[1]}`,
@@ -242,7 +242,7 @@ function extractRemoteActionDependencies(
     }
 
     // $RemoteAction.Controller.method pattern
-    const remoteActionMatch = line.match(/\{\!\$RemoteAction\.([^.]+)\.(\w+)\}/);
+    const remoteActionMatch = line.match(/\{!\$RemoteAction\.([^.]+)\.(\w+)\}/);
     if (remoteActionMatch) {
       addDependency({
         target: `apex:${remoteActionMatch[1]}`,

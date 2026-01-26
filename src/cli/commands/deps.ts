@@ -75,7 +75,7 @@ export async function analyzeDeps(
     let output: string | undefined;
 
     switch (options.format) {
-      case 'json':
+      case 'json': {
         const jsonOutput = formatJsonOutput(graph, conversionOrder);
         output = serializeJson(jsonOutput);
         if (options.output) {
@@ -85,6 +85,7 @@ export async function analyzeDeps(
           console.log(output);
         }
         break;
+      }
 
       case 'mermaid':
         // Use simplified output for large graphs

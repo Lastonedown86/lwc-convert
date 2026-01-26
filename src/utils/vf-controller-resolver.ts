@@ -59,7 +59,7 @@ export function extractControllerNames(markup: string): { name: string; type: Vf
   }
 
   // Find $RemoteAction references: {!$RemoteAction.ControllerName.methodName}
-  const remoteActionRegex = /\{\!\$RemoteAction\.([^.]+)\.\w+\}/g;
+  const remoteActionRegex = /\{!\$RemoteAction\.([^.]+)\.\w+\}/g;
   let match;
   while ((match = remoteActionRegex.exec(markup)) !== null) {
     const name = match[1].trim();

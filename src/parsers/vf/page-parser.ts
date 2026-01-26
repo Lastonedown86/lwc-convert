@@ -275,7 +275,7 @@ function findRemoteActions(content: string): VfRemoteAction[] {
   }
 
   // Also look for $RemoteAction patterns
-  const remoteActionExprRegex = /\{\!\$RemoteAction\.([^.]+)\.(\w+)\}/g;
+  const remoteActionExprRegex = /\{!\$RemoteAction\.([^.]+)\.(\w+)\}/g;
   while ((match = remoteActionExprRegex.exec(content)) !== null) {
     remoteActions.push({
       controller: match[1],

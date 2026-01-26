@@ -46,8 +46,7 @@ export async function convertAura(
   }
   logger.divider();
 
-  try {
-    // Step 1: Read Aura bundle
+  // Step 1: Read Aura bundle
     logger.step(1, 'Reading Aura component bundle...');
     const bundle = await readAuraBundle(bundlePath);
     logger.success(`Read component: ${bundle.name}`);
@@ -228,8 +227,4 @@ export async function convertAura(
       logger.info('Opening output folder...');
       await openFolder(outputDir);
     }
-  } catch (error: any) {
-    // Re-throw so callers (like TUI) can handle the error
-    throw error;
-  }
 }

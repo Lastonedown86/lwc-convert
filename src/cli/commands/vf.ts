@@ -67,8 +67,7 @@ export async function convertVf(
   }
   logger.divider();
 
-  try {
-    // Step 1: Read VF page
+  // Step 1: Read VF page
     logger.step(1, 'Reading Visualforce page...');
     const vfPage = await readVfPage(pagePath, controllerPath);
     logger.success(`Read page: ${vfPage.name}`);
@@ -210,8 +209,4 @@ export async function convertVf(
       logger.info('Opening output folder...');
       await openFolder(outputDir);
     }
-  } catch (error: any) {
-    // Re-throw so callers (like TUI) can handle the error
-    throw error;
-  }
 }
