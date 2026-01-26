@@ -41,6 +41,7 @@ export interface AuraExpression {
 
 export interface ParsedAuraMarkup {
   componentName: string;
+  extends?: string;              // Parent component (e.g., "c:baseComponent")
   implements?: string[];
   extensible?: boolean;
   abstract?: boolean;
@@ -53,6 +54,7 @@ export interface ParsedAuraMarkup {
   expressions: AuraExpression[];
   dependencies: string[];
   facets: Map<string, Node[]>;
+  isSimpleExtension?: boolean;  // True if component just extends with minimal body
 }
 
 /**
@@ -201,6 +203,10 @@ export function parseAuraMarkup(markup: string, componentName: string): ParsedAu
     result.controller = attrs.controller;
   }
 
+  if (attrs.extends) {
+    result.extends = attrs.extends;
+  }
+
   // Process children of aura:component
   const bodyNodes: Node[] = [];
 
@@ -307,6 +313,30 @@ export function parseAuraMarkup(markup: string, componentName: string): ParsedAu
 
   // Find component dependencies
   result.dependencies = findDependencies(bodyNodes);
+
+  // Determine if this is a "simple extension" component
+  // A simple extension extends another component with minimal customization:
+  // - Has an extends attribute
+  // - Has few or no additional attributes (beyond inherited ones)
+  // - Has minimal or empty body content
+  // - Has few or no additional handlers
+  if (result.extends) {
+    const hasMinimalBody = bodyNodes.length === 0 ||
+      (bodyNodes.length === 1 && bodyNodes[0].type === 'text');
+    const hasMinimalAttributes = result.attributes.length <= 2;
+    const hasMinimalHandlers = result.handlers.length <= 1;
+    const hasNoMethods = result.methods.length === 0;
+
+    result.isSimpleExtension = hasMinimalBody && hasMinimalAttributes &&
+      hasMinimalHandlers && hasNoMethods;
+
+    if (result.extends) {
+      logger.debug(`Component extends: ${result.extends}`);
+      if (result.isSimpleExtension) {
+        logger.debug('Detected as simple extension component');
+      }
+    }
+  }
 
   logger.debug(`Parsed ${result.attributes.length} attributes`);
   logger.debug(`Parsed ${result.handlers.length} handlers`);

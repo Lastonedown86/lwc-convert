@@ -88,4 +88,33 @@ describe('Aura Markup Parser', () => {
     const result = parseAuraMarkup(sampleMarkup, 'SampleComponent');
     expect(result.body.length).toBeGreaterThan(0);
   });
+
+  test('should parse extends attribute', () => {
+    const extendingMarkup = `
+      <aura:component extends="c:BaseComponent" controller="MyController">
+        <aura:attribute name="customAttr" type="String" />
+        <div>Custom content</div>
+      </aura:component>
+    `;
+    const result = parseAuraMarkup(extendingMarkup, 'ExtendingComponent');
+    expect(result.extends).toBe('c:BaseComponent');
+    expect(result.isSimpleExtension).toBe(false); // Has body content
+  });
+
+  test('should detect simple extension component', () => {
+    const simpleExtensionMarkup = `
+      <aura:component extends="c:BaseComponent">
+        <aura:attribute name="recordId" type="String" />
+      </aura:component>
+    `;
+    const result = parseAuraMarkup(simpleExtensionMarkup, 'SimpleExtension');
+    expect(result.extends).toBe('c:BaseComponent');
+    expect(result.isSimpleExtension).toBe(true); // No body, minimal attributes
+  });
+
+  test('should not mark non-extending component as extension', () => {
+    const result = parseAuraMarkup(sampleMarkup, 'SampleComponent');
+    expect(result.extends).toBeUndefined();
+    expect(result.isSimpleExtension).toBeUndefined();
+  });
 });

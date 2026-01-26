@@ -51,6 +51,12 @@ export interface ComponentGrade {
     // Metadata
     gradedAt: Date;
     gradedVersion: string;
+
+    // Extension metadata (for Aura components that extend others)
+    metadata?: {
+        extends?: string;           // Parent component name
+        isSimpleExtension?: boolean; // True if minimal customization
+    };
 }
 
 export interface GradingSummary {

@@ -165,9 +165,15 @@ function renderList(state: TuiState): string {
     const gradeColor = getGradeColor(comp.letterGrade);
     const complexityColor = getComplexityColor(comp.complexity);
 
+    // Add extension indicator
+    const extendsIndicator = comp.metadata?.extends
+      ? chalk.magenta('↱ ')
+      : '  ';
+
     let row =
       ` ${prefix} ` +
-      name.padEnd(28) +
+      extendsIndicator +
+      name.padEnd(26) +
       comp.componentType.padEnd(8) +
       comp.overallScore.toString().padEnd(8) +
       gradeColor.bold(comp.letterGrade.padEnd(8)) +
@@ -267,8 +273,27 @@ function renderDetailView(state: TuiState): string {
   lines.push(chalk.bold('Score: ') + chalk.white.bold(`${comp.overallScore}/100`));
   lines.push(chalk.bold('Complexity: ') + getComplexityColor(comp.complexity)(comp.complexity));
   lines.push(chalk.bold('File: ') + chalk.dim(comp.filePath || 'N/A'));
+
+  // Show extension info if present
+  if (comp.metadata?.extends) {
+    lines.push('');
+    lines.push(chalk.bold('Extends: ') + chalk.magenta(comp.metadata.extends));
+    if (comp.metadata.isSimpleExtension) {
+      lines.push(chalk.yellow('  ⚡ Simple extension - minimal customization'));
+    }
+  }
+
   lines.push(chalk.dim('─'.repeat(50)));
   lines.push('');
+
+  // Warnings section
+  if (comp.warnings && comp.warnings.length > 0) {
+    lines.push(chalk.bold.underline('Warnings:'));
+    for (const warning of comp.warnings) {
+      lines.push(chalk.yellow('  ⚠ ') + warning);
+    }
+    lines.push('');
+  }
 
   // Complexity factors
   lines.push(chalk.bold.underline('Complexity Factors:'));

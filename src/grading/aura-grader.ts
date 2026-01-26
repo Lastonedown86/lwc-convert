@@ -40,6 +40,21 @@ export class AuraGrader {
         const conversionEffort = this.estimateEffort(overallScore, complexityFactors);
         const recommendations = this.generateRecommendations(complexityFactors);
 
+        // Check for extension-related warnings and recommendations
+        const warnings: string[] = [];
+        if (parsedMarkup.extends) {
+            warnings.push(`Extends: ${parsedMarkup.extends}`);
+            if (parsedMarkup.isSimpleExtension) {
+                recommendations.unshift(
+                    `Simple extension of ${parsedMarkup.extends} - consider using composition or removing if unused`
+                );
+            } else {
+                recommendations.unshift(
+                    `Extends ${parsedMarkup.extends} - convert parent first, then use class inheritance in LWC`
+                );
+            }
+        }
+
         return {
             componentName,
             componentType: 'aura',
@@ -51,9 +66,14 @@ export class AuraGrader {
             complexityFactors,
             conversionEffort,
             recommendations,
-            warnings: [], // TODO: Add warnings if parsing failed or other issues
+            warnings,
             gradedAt: new Date(),
-            gradedVersion: CLI_VERSION
+            gradedVersion: CLI_VERSION,
+            // Add extension metadata
+            metadata: parsedMarkup.extends ? {
+                extends: parsedMarkup.extends,
+                isSimpleExtension: parsedMarkup.isSimpleExtension || false
+            } : undefined
         };
     }
 
@@ -134,6 +154,17 @@ export class AuraGrader {
         if (metrics.dependencyCount > 5) {
             score -= 10;
             factors.push('High number of dependencies');
+        }
+
+        // Check if component extends another
+        if (markup.extends) {
+            score -= 15; // Extension adds conversion complexity
+            factors.push(`Extends ${markup.extends} (convert parent first)`);
+
+            if (markup.isSimpleExtension) {
+                score += 10; // Simple extensions are easier
+                factors.push('Simple extension - consider removing or using composition');
+            }
         }
 
         return GradeCalculator.createCategoryScore(Math.max(0, score), 10, factors);
