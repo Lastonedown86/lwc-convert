@@ -238,52 +238,75 @@ Session Management:
 
 // Parse and execute
 // If no arguments provided, launch interactive TUI
-if (process.argv.slice(2).length === 0) {
-  // Dynamic import to avoid loading TUI dependencies if not needed
-  import('./cli/interactive').then(async ({ runInteractiveTui }) => {
-    const answers = await runInteractiveTui();
+const args = process.argv.slice(2);
+const useLegacyTui = process.env.LWC_CONVERT_LEGACY_TUI === '1' || args.includes('--legacy-tui');
+const useNewTui = args.includes('--new-tui');
 
-    if (answers) {
-      // Execute the conversion based on user selections
-      logger.setVerbose(false);
+// Remove TUI flags from args before parsing
+const filteredArgs = args.filter(arg => arg !== '--legacy-tui' && arg !== '--new-tui');
 
-      if (answers.action === 'grade') {
-        if (answers.gradingOptions) {
-          await grade(answers.gradingOptions.targetPath, {
-            type: answers.gradingOptions.type,
-            output: answers.gradingOptions.exportDir,
-            format: answers.gradingOptions.exportFormats?.[0],
-            detailed: answers.gradingOptions.detailLevel === 'detailed',
+if (filteredArgs.length === 0) {
+  // No arguments - launch interactive TUI
+  if (useLegacyTui) {
+    // Use legacy @clack/prompts-based TUI
+    import('./cli/interactive').then(async ({ runInteractiveTui }) => {
+      const answers = await runInteractiveTui();
+
+      if (answers) {
+        // Execute the conversion based on user selections
+        logger.setVerbose(false);
+
+        if (answers.action === 'grade') {
+          if (answers.gradingOptions) {
+            await grade(answers.gradingOptions.targetPath, {
+              type: answers.gradingOptions.type,
+              output: answers.gradingOptions.exportDir,
+              format: answers.gradingOptions.exportFormats?.[0],
+              detailed: answers.gradingOptions.detailLevel === 'detailed',
+              dryRun: false,
+              verbose: false
+            });
+          }
+        } else if (answers.conversionType === 'aura' && answers.componentPath) {
+          await convertAura(answers.componentPath, {
+            output: answers.outputDir || DEFAULT_OUTPUT_DIR,
+            full: answers.conversionMode === 'full',
             dryRun: false,
-            verbose: false
+            verbose: false,
+            open: !!answers.openFolder,
+            preview: !!answers.preview,
+          });
+        } else if (answers.conversionType === 'vf' && answers.componentPath) {
+          await convertVf(answers.componentPath, {
+            output: answers.outputDir || DEFAULT_OUTPUT_DIR,
+            full: answers.conversionMode === 'full',
+            dryRun: false,
+            verbose: false,
+            controller: answers.controllerPath,
+            open: !!answers.openFolder,
+            preview: !!answers.preview,
           });
         }
-      } else if (answers.conversionType === 'aura' && answers.componentPath) {
-        await convertAura(answers.componentPath, {
-          output: answers.outputDir || DEFAULT_OUTPUT_DIR,
-          full: answers.conversionMode === 'full',
-          dryRun: false,
-          verbose: false,
-          open: !!answers.openFolder,
-          preview: !!answers.preview,
-        });
-      } else if (answers.conversionType === 'vf' && answers.componentPath) {
-        await convertVf(answers.componentPath, {
-          output: answers.outputDir || DEFAULT_OUTPUT_DIR,
-          full: answers.conversionMode === 'full',
-          dryRun: false,
-          verbose: false,
-          controller: answers.controllerPath,
-          open: !!answers.openFolder,
-          preview: !!answers.preview,
-        });
       }
-    }
-  }).catch((err) => {
-    logger.error(`Failed to start interactive mode: ${err.message}`);
-    if (err.stack) logger.debug(err.stack);
-    program.outputHelp();
-  });
+    }).catch((err) => {
+      logger.error(`Failed to start interactive mode: ${err.message}`);
+      if (err.stack) logger.debug(err.stack);
+      program.outputHelp();
+    });
+  } else {
+    // Use new Ink-based TUI (default)
+    import('./tui/index.js').then(({ startTui }) => {
+      startTui();
+    }).catch((err) => {
+      logger.error(`Failed to start TUI: ${err.message}`);
+      if (err.stack) logger.debug(err.stack);
+      // Fallback to legacy TUI
+      logger.info('Falling back to legacy interactive mode...');
+      import('./cli/interactive').then(async ({ runInteractiveTui }) => {
+        await runInteractiveTui();
+      });
+    });
+  }
 } else {
   program.parse(process.argv);
 }
