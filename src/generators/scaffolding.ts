@@ -743,7 +743,7 @@ export function generateAuraScaffolding(
   const notes: string[] = [];
 
   // Generate HTML with comments
-  let html = transformedMarkup.html;
+  const html = transformedMarkup.html;
 
   // Generate JS scaffolding
   const { js, warnings: jsWarnings } = generateAuraScaffoldingJs(markup, transformedMarkup, controller, helper);

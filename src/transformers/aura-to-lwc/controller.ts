@@ -291,7 +291,7 @@ export function transformAuraController(
     for (const func of controller.functions) {
       let methodName = func.name;
       let isLifecycle = false;
-      let body = func.body;
+      const body = func.body;
 
       // Check if this is the init handler
       if (initHandler && initHandler.action.includes(func.name)) {

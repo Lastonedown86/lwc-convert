@@ -57,7 +57,7 @@ export class VfGrader {
     }
 
     private scoreComponentMappings(metrics: any, page: any): CategoryScore {
-        let score = 100;
+        const score = 100;
         const factors: string[] = [];
 
         // Check for components with no direct LWC equivalent
@@ -102,7 +102,7 @@ export class VfGrader {
     }
 
     private scoreDataBinding(metrics: any, page: any): CategoryScore {
-        let score = 100;
+        const score = 100;
         const factors: string[] = [];
 
         // VF expressions are generally convertable, but complex formulas are hard
