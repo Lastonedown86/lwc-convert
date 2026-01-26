@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Box, useApp } from 'ink';
 import { useStore, useCurrentModal } from './store/index.js';
 import { useKeyBindings } from './hooks/useKeyBindings.js';
@@ -48,8 +48,7 @@ export function App(): React.ReactElement {
       global: true,
     },
     {
-      key: 'k',
-      ctrl: true,
+      key: '/',
       action: () => openModal('command-palette'),
       description: 'Command Palette',
       global: true,
@@ -85,23 +84,24 @@ export function App(): React.ReactElement {
         return <ExportModal />;
       case 'command-palette':
         return (
-          <Box
-            position="absolute"
-            flexDirection="column"
-            alignItems="center"
-            justifyContent="flex-start"
-            marginTop={2}
-          >
-            <CommandPalette
-              commands={commands}
-              onClose={closeModal}
-            />
-          </Box>
+          <CommandPalette
+            commands={commands}
+            onClose={closeModal}
+          />
         );
       default:
         return null;
     }
   };
+
+  // If command palette is open, render it centered instead of the screen
+  if (currentModal === 'command-palette') {
+    return (
+      <Box flexDirection="column" alignItems="center" justifyContent="flex-start" paddingTop={3}>
+        {renderModal()}
+      </Box>
+    );
+  }
 
   return (
     <Box flexDirection="column">

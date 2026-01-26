@@ -58,6 +58,7 @@ export interface AppState {
 
   // Actions - Grading
   setGradingResults: (results: ComponentGrade[], summary: GradingSummary) => void;
+  clearGradingResults: () => void;
   updateGradingState: (state: Partial<GradingDisplayState>) => void;
 
   // Actions - Browser
@@ -190,6 +191,14 @@ export const useStore = create<AppState>((set, get) => ({
         selectedIndex: 0,
         scrollOffset: 0,
       },
+    });
+  },
+
+  clearGradingResults: () => {
+    set({
+      gradingResults: [],
+      gradingSummary: null,
+      grading: initialGradingState,
     });
   },
 

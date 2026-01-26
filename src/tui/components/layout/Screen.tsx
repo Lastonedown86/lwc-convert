@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box } from 'ink';
+import { Box, Text } from 'ink';
 import { Header } from './Header.js';
 import { Footer } from './Footer.js';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
@@ -20,7 +20,12 @@ export function Screen({
   showHeader = true,
   showFooter = true,
 }: ScreenProps): React.ReactElement {
-  const { rows, columns } = useTerminalSize();
+  const { columns, rows } = useTerminalSize();
+
+  // Calculate available height for content (minus header and footer)
+  const headerHeight = showHeader ? 3 : 0;
+  const footerHeight = showFooter ? 3 : 0;
+  const contentHeight = Math.max(1, rows - headerHeight - footerHeight);
 
   return (
     <Box
@@ -32,8 +37,9 @@ export function Screen({
 
       <Box
         flexDirection="column"
-        flexGrow={1}
+        height={contentHeight}
         paddingX={1}
+        overflow="hidden"
       >
         {children}
       </Box>

@@ -2,7 +2,7 @@
  * CLI command handler for dependency graph analysis
  */
 
-import * as fs from 'fs-extra';
+import fs from 'fs-extra';
 import * as path from 'path';
 import { logger } from '../../utils/logger';
 import { DependencyAnalyzer } from '../../dependency-graph/analyzer';

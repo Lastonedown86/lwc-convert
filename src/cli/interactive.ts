@@ -6,7 +6,7 @@
 import * as p from '@clack/prompts';
 import color from 'picocolors';
 import * as path from 'path';
-import * as fs from 'fs-extra';
+import fs from 'fs-extra';
 import { DEFAULT_OUTPUT_DIR } from './options';
 import {
   findVfControllers,

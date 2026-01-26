@@ -1,5 +1,5 @@
 import * as path from 'path';
-import * as fs from 'fs-extra';
+import fs from 'fs-extra';
 import { logger } from '../../utils/logger';
 import { Grader } from '../../grading/grader';
 import { GradingOptions, ComponentGrade, GradingSummary } from '../../grading/types';

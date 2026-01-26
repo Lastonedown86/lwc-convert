@@ -4,7 +4,7 @@
  */
 
 import * as path from 'path';
-import * as fs from 'fs-extra';
+import fs from 'fs-extra';
 
 // Common Aura component locations in Salesforce projects
 const AURA_SEARCH_PATHS = [

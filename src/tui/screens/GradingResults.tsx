@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Text } from 'ink';
 import { Screen } from '../components/layout/Screen.js';
 import { Table } from '../components/data/Table.js';
-import { GradeDistribution, GradeBadge } from '../components/feedback/index.js';
+import { GradeDistribution, GradeBadge, Spinner } from '../components/feedback/index.js';
 import { useStore, useFilteredGradingResults, useGradeDistribution } from '../store/index.js';
 import { getTheme, getGradeColor } from '../themes/index.js';
 import { useKeyBindings } from '../hooks/useKeyBindings.js';
 import { useVisibleRows } from '../hooks/useTerminalSize.js';
+import { Grader } from '../../grading/grader.js';
 import type { KeyBinding, TableColumn, GradeLevel, GradingSortBy } from '../types.js';
 import type { ComponentGrade } from '../../grading/types.js';
 
@@ -16,8 +17,58 @@ export function GradingResults(): React.ReactElement {
   const goBack = useStore((state) => state.goBack);
   const openModal = useStore((state) => state.openModal);
   const gradingSummary = useStore((state) => state.gradingSummary);
+  const gradingResults = useStore((state) => state.gradingResults);
   const grading = useStore((state) => state.grading);
   const updateGradingState = useStore((state) => state.updateGradingState);
+  const setGradingResults = useStore((state) => state.setGradingResults);
+  const projectPath = useStore((state) => state.projectPath);
+  const clearGradingResults = useStore((state) => state.clearGradingResults);
+
+  // Check if we have data on initial render
+  const hasData = gradingResults.length > 0;
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Trigger grading on mount or when refreshKey changes
+  useEffect(() => {
+    const runGrading = async (): Promise<void> => {
+      // Skip if we already have data and this is not a manual refresh
+      if (hasData && refreshKey === 0) {
+        return;
+      }
+
+      // Skip if already loading
+      if (isLoading) {
+        return;
+      }
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const grader = new Grader();
+        const results = await grader.grade({
+          type: 'both',
+          scope: 'project',
+          detailLevel: 'standard',
+        });
+
+        if (results.length === 0) {
+          setError('No components found to grade. Make sure you are in a Salesforce project directory.');
+        } else {
+          const summary = grader.generateSummary(results);
+          setGradingResults(results, summary);
+        }
+      } catch (err: any) {
+        setError(`Grading failed: ${err.message}`);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    runGrading();
+  }, [refreshKey]);
 
   const theme = getTheme(preferences.theme);
   const visibleRows = useVisibleRows(preferences.visibleRows);
@@ -42,8 +93,20 @@ export function GradingResults(): React.ReactElement {
   const sortOptions: GradingSortBy[] = ['score', 'name', 'complexity', 'type'];
   const gradeFilters: (GradeLevel | null)[] = [null, 'A', 'B', 'C', 'D', 'F'];
 
+  // Function to trigger re-grading
+  const triggerRegrade = (): void => {
+    clearGradingResults();
+    setError(null);
+    setRefreshKey((prev) => prev + 1);
+  };
+
   const footerBindings: KeyBinding[] = [
     { key: 'escape', action: goBack, description: 'Back' },
+    {
+      key: 'r',
+      action: triggerRegrade,
+      description: 'Refresh',
+    },
     {
       key: 's',
       action: () => {
@@ -78,11 +141,8 @@ export function GradingResults(): React.ReactElement {
       key: 'up',
       action: () => {
         const newIndex = Math.max(0, grading.selectedIndex - 1);
-        updateGradingState({ selectedIndex: newIndex });
-        // Adjust scroll if needed
-        if (newIndex < grading.scrollOffset) {
-          updateGradingState({ scrollOffset: newIndex });
-        }
+        const newScrollOffset = newIndex < grading.scrollOffset ? newIndex : grading.scrollOffset;
+        updateGradingState({ selectedIndex: newIndex, scrollOffset: newScrollOffset });
       },
       description: 'Up',
     },
@@ -90,11 +150,10 @@ export function GradingResults(): React.ReactElement {
       key: 'down',
       action: () => {
         const newIndex = Math.min(filteredResults.length - 1, grading.selectedIndex + 1);
-        updateGradingState({ selectedIndex: newIndex });
-        // Adjust scroll if needed
-        if (newIndex >= grading.scrollOffset + visibleRows) {
-          updateGradingState({ scrollOffset: newIndex - visibleRows + 1 });
-        }
+        const newScrollOffset = newIndex >= grading.scrollOffset + visibleRows
+          ? newIndex - visibleRows + 1
+          : grading.scrollOffset;
+        updateGradingState({ selectedIndex: newIndex, scrollOffset: newScrollOffset });
       },
       description: 'Down',
     },
@@ -128,7 +187,56 @@ export function GradingResults(): React.ReactElement {
     },
   ];
 
-  useKeyBindings(footerBindings, { isActive: grading.viewMode === 'list' });
+  // Error state bindings
+  const errorBindings: KeyBinding[] = [
+    { key: 'escape', action: goBack, description: 'Back' },
+    { key: 'r', action: triggerRegrade, description: 'Retry' },
+  ];
+
+  // Loading state bindings
+  const loadingBindings: KeyBinding[] = [
+    { key: 'escape', action: goBack, description: 'Cancel' },
+  ];
+
+  // Use key bindings based on current state
+  useKeyBindings(footerBindings, { isActive: grading.viewMode === 'list' && !isLoading && !error });
+  useKeyBindings(errorBindings, { isActive: !!error && !isLoading });
+  useKeyBindings(loadingBindings, { isActive: isLoading });
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <Screen title="Grading Results" footerBindings={loadingBindings}>
+        <Box flexDirection="column" paddingY={1} alignItems="center">
+          <Spinner label="Scanning and grading components..." />
+          <Text color={theme.textMuted}>This may take a moment for large projects.</Text>
+        </Box>
+      </Screen>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <Screen title="Grading Results" footerBindings={errorBindings}>
+        <Box flexDirection="column" paddingY={1}>
+          <Box
+            borderStyle="single"
+            borderColor={theme.error}
+            paddingX={2}
+            paddingY={1}
+          >
+            <Text color={theme.error}>⚠ {error}</Text>
+          </Box>
+          <Box marginTop={1}>
+            <Text color={theme.textMuted}>
+              Press <Text color={theme.accent}>R</Text> to retry or <Text color={theme.accent}>Escape</Text> to go back.
+            </Text>
+          </Box>
+        </Box>
+      </Screen>
+    );
+  }
 
   if (grading.viewMode === 'detail') {
     return (
@@ -203,6 +311,16 @@ export function GradingResults(): React.ReactElement {
             keyExtractor={(item) => item.filePath}
           />
         </Box>
+
+        {/* Scroll indicator */}
+        {filteredResults.length > visibleRows && (
+          <Box marginTop={1}>
+            <Text color={theme.textMuted}>
+              Showing {grading.scrollOffset + 1}-{Math.min(grading.scrollOffset + visibleRows, filteredResults.length)} of{' '}
+              {filteredResults.length} │ Use ↑↓ to scroll
+            </Text>
+          </Box>
+        )}
       </Box>
     </Screen>
   );

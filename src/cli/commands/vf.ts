@@ -22,15 +22,12 @@ export async function convertVf(
   const resolved = await resolveVfPath(inputPath);
   
   if (!resolved.found) {
-    logger.error(`Page not found: ${inputPath}`);
-    if (resolved.searchedLocations && resolved.searchedLocations.length > 0) {
-      logger.subheader('Searched in:');
-      console.log(formatSearchLocations(resolved.searchedLocations, process.cwd()));
-    }
-    logger.blank();
-    logger.info('Tip: You can provide just the page name (e.g., "ContactList")');
-    logger.info('     or a full path (e.g., "./force-app/main/default/pages/ContactList.page")');
-    process.exit(1);
+    const searchInfo = resolved.searchedLocations && resolved.searchedLocations.length > 0
+      ? `\nSearched in:\n${formatSearchLocations(resolved.searchedLocations, process.cwd())}`
+      : '';
+    throw new Error(
+      `Page not found: ${inputPath}${searchInfo}\n\nTip: You can provide just the page name (e.g., "ContactList") or a full path (e.g., "./force-app/main/default/pages/ContactList.page")`
+    );
   }
 
   const pagePath = resolved.path;
@@ -214,10 +211,7 @@ export async function convertVf(
       await openFolder(outputDir);
     }
   } catch (error: any) {
-    logger.error(error.message);
-    if (options.verbose && error.stack) {
-      console.error(error.stack);
-    }
-    process.exit(1);
+    // Re-throw so callers (like TUI) can handle the error
+    throw error;
   }
 }

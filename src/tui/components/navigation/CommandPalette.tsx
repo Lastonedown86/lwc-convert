@@ -1,10 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { Box, Text } from 'ink';
+import { Box, Text, useInput } from 'ink';
 import Fuse from 'fuse.js';
 import { useStore } from '../../store/index.js';
 import { getTheme } from '../../themes/index.js';
-import { TextInput } from '../forms/TextInput.js';
-import { useKeyBindings } from '../../hooks/useKeyBindings.js';
 import type { ScreenType } from '../../types.js';
 
 export interface Command {
@@ -51,38 +49,41 @@ export function CommandPalette({
   }, [query, fuse, commands]);
 
   // Clamp selected index
-  const clampedIndex = Math.min(selectedIndex, filteredCommands.length - 1);
+  const clampedIndex = Math.min(selectedIndex, Math.max(0, filteredCommands.length - 1));
 
-  // Handle keyboard navigation
-  useKeyBindings([
-    {
-      key: 'escape',
-      action: onClose,
-      description: 'Close',
-    },
-    {
-      key: 'up',
-      action: () => setSelectedIndex(Math.max(0, clampedIndex - 1)),
-      description: 'Previous',
-    },
-    {
-      key: 'down',
-      action: () =>
-        setSelectedIndex(Math.min(filteredCommands.length - 1, clampedIndex + 1)),
-      description: 'Next',
-    },
-    {
-      key: 'return',
-      action: () => {
-        if (filteredCommands[clampedIndex]) {
-          onExecute?.(filteredCommands[clampedIndex]);
-          filteredCommands[clampedIndex].action();
-          onClose();
-        }
-      },
-      description: 'Execute',
-    },
-  ]);
+  // Handle all input directly since we have a text input
+  useInput((input, key) => {
+    if (key.escape) {
+      onClose();
+      return;
+    }
+    if (key.upArrow) {
+      setSelectedIndex(Math.max(0, clampedIndex - 1));
+      return;
+    }
+    if (key.downArrow) {
+      setSelectedIndex(Math.min(filteredCommands.length - 1, clampedIndex + 1));
+      return;
+    }
+    if (key.return) {
+      if (filteredCommands[clampedIndex]) {
+        onExecute?.(filteredCommands[clampedIndex]);
+        filteredCommands[clampedIndex].action();
+        onClose();
+      }
+      return;
+    }
+    if (key.backspace) {
+      setQuery((prev) => prev.slice(0, -1));
+      setSelectedIndex(0);
+      return;
+    }
+    // Regular character input
+    if (input && !key.ctrl && !key.meta) {
+      setQuery((prev) => prev + input);
+      setSelectedIndex(0);
+    }
+  });
 
   const maxVisibleCommands = 8;
   const visibleCommands = filteredCommands.slice(0, maxVisibleCommands);
@@ -100,15 +101,10 @@ export function CommandPalette({
       <Box marginBottom={1}>
         <Text color={theme.accent}>{'>'}</Text>
         <Box marginLeft={1} flexGrow={1}>
-          <TextInput
-            value={query}
-            onChange={(value) => {
-              setQuery(value);
-              setSelectedIndex(0);
-            }}
-            placeholder="Type a command..."
-            focus
-          />
+          <Text color={query ? theme.text : theme.textMuted}>
+            {query || 'Type a command...'}
+          </Text>
+          <Text color={theme.accent}>▌</Text>
         </Box>
       </Box>
 
@@ -123,8 +119,11 @@ export function CommandPalette({
               key={command.id}
               paddingX={1}
             >
+              <Text color={isSelected ? theme.accent : theme.textMuted}>
+                {isSelected ? '▸ ' : '  '}
+              </Text>
               <Box flexGrow={1}>
-                <Text color={isSelected ? theme.text : theme.text}>
+                <Text color={isSelected ? theme.text : theme.textMuted} bold={isSelected}>
                   {command.label}
                 </Text>
               </Box>

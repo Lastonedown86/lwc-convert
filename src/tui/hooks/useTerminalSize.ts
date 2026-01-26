@@ -43,13 +43,16 @@ export function useTerminalSize(): TerminalSize {
 
 export function useVisibleRows(
   preferredRows: number | 'auto',
-  minRows: number = 5
+  minRows: number = 5,
+  maxRows: number = 20
 ): number {
   const { contentRows } = useTerminalSize();
 
   if (preferredRows === 'auto') {
-    return Math.max(contentRows - 6, minRows); // Reserve space for summary and padding
+    // Reserve space for header, summary, grade distribution, filter/sort bar, scroll indicator
+    const available = Math.max(contentRows - 12, minRows);
+    return Math.min(available, maxRows);
   }
 
-  return Math.min(preferredRows, Math.max(contentRows - 6, minRows));
+  return Math.min(preferredRows, Math.max(contentRows - 12, minRows), maxRows);
 }
