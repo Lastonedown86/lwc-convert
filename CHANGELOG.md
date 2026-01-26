@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.2](https://github.com/Lastonedown86/lwc-convert/compare/v1.3.1...v1.3.2) (2026-01-26)
+
+
+### Bug Fixes
+
+* add TUI keywords for npm discoverability ([475fb94](https://github.com/Lastonedown86/lwc-convert/commit/475fb940bbff53de5b6efe51457edf8a42600c06))
+
 ## [1.3.1](https://github.com/Lastonedown86/lwc-convert/compare/v1.3.0...v1.3.1) (2026-01-25)
 
 
