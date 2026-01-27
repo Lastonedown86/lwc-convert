@@ -3,6 +3,7 @@ import { Box, Text } from 'ink';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
 import { useStore } from '../../store/index.js';
 import { getTheme } from '../../themes/index.js';
+import { CLI_VERSION } from '../../../cli/options.js';
 
 export interface HeaderProps {
   title: string;
@@ -14,7 +15,7 @@ export function Header({ title }: HeaderProps): React.ReactElement {
   const theme = getTheme(preferences.theme);
 
   const appName = 'LWC Convert';
-  const version = 'v1.3.1';
+  const version = `v${CLI_VERSION}`;
   const helpText = '[?] Help  [S] Settings';
 
   // Calculate spacing
