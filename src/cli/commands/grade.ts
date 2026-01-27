@@ -102,6 +102,14 @@ export async function grade(
             } else {
                 console.log(JSON.stringify(output, null, 2));
             }
+        } else if (options.format === 'csv') {
+            const csvContent = generateCsvReport(filteredResults, summary);
+            if (options.output) {
+                await fs.writeFile(options.output, csvContent);
+                logger.success(`CSV report written to ${options.output}`);
+            } else {
+                console.log(csvContent);
+            }
         } else if (options.interactive !== false && shouldUseInteractive() && !options.output) {
             // Launch interactive TUI
             await launchGradeTui(filteredResults, summary);
@@ -193,4 +201,64 @@ function printConsoleReport(results: ComponentGrade[], summary: GradingSummary, 
             logger.blank();
         });
     }
+}
+
+function escapeCsvField(field: string): string {
+    if (field.includes(',') || field.includes('"') || field.includes('\n')) {
+        return `"${field.replace(/"/g, '""')}"`;
+    }
+    return field;
+}
+
+function generateCsvReport(results: ComponentGrade[], summary: GradingSummary): string {
+    const lines: string[] = [];
+
+    // Header row
+    lines.push([
+        'Component',
+        'Type',
+        'Score',
+        'Grade',
+        'Complexity',
+        'Automated %',
+        'Manual Hours (Est)',
+        'Skill Level',
+        'Warnings',
+        'File Path'
+    ].join(','));
+
+    // Data rows
+    for (const r of results) {
+        lines.push([
+            escapeCsvField(r.componentName),
+            r.componentType,
+            r.overallScore.toString(),
+            r.letterGrade,
+            r.complexity,
+            r.conversionEffort.automatedPercentage.toString(),
+            r.conversionEffort.manualHours.estimate.toString(),
+            r.conversionEffort.skillLevel,
+            r.warnings.length.toString(),
+            escapeCsvField(r.filePath)
+        ].join(','));
+    }
+
+    // Summary section (blank row then summary)
+    lines.push('');
+    lines.push('# Summary');
+    lines.push(`Total Components,${summary.totalComponents}`);
+    lines.push(`Average Score,${summary.averageScore}`);
+    lines.push(`Average Grade,${summary.averageGrade}`);
+    lines.push(`Total Manual Hours (Est),${summary.totalEffort.manualHours.estimate}`);
+    lines.push(`Overall Automated %,${summary.totalEffort.automatedPercentage}`);
+
+    // Grade distribution
+    lines.push('');
+    lines.push('# Grade Distribution');
+    lines.push('Grade,Count');
+    for (const grade of ['A', 'B', 'C', 'D', 'F'] as const) {
+        lines.push(`${grade},${summary.distribution[grade] || 0}`);
+    }
+
+    return lines.join('\n');
 }

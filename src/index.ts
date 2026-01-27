@@ -10,13 +10,29 @@ import { convertAura } from './cli/commands/aura';
 import { convertVf } from './cli/commands/vf';
 import { logger } from './utils/logger';
 import { sessionStore } from './utils/session-store';
+import { checkForUpdates, formatUpdateMessage } from './utils/update-checker';
+
+// Start update check early (non-blocking)
+const updateCheckPromise = checkForUpdates();
 
 const program = new Command();
 
 program
   .name(CLI_NAME)
   .description(CLI_DESCRIPTION)
-  .version(CLI_VERSION);
+  .version(CLI_VERSION)
+  .hook('postAction', async () => {
+    // Show update notification after command completes
+    try {
+      const updateInfo = await updateCheckPromise;
+      if (updateInfo.hasUpdate && updateInfo.latestVersion) {
+        console.log('');
+        console.log(formatUpdateMessage(updateInfo.latestVersion, updateInfo.currentVersion));
+      }
+    } catch {
+      // Silently ignore update check errors
+    }
+  });
 
 // Aura conversion command
 program
@@ -75,7 +91,7 @@ program
   .description('Assess conversion complexity of components')
   .option('-t, --type <type>', 'Component type (aura, vf, both)', 'both')
   .option('-o, --output <file>', 'Output file for report')
-  .option('--format <format>', 'Output format (json, console)', 'console')
+  .option('--format <format>', 'Output format (json, csv, console)', 'console')
   .option('--detailed', 'Show detailed breakdown', false)
   .option('--sort-by <field>', 'Sort by (score, complexity, name)')
   .option('--filter <filter>', 'Filter results (e.g., "grade:D,F")')
@@ -212,6 +228,10 @@ Examples:
   $ ${CLI_NAME} session
   $ ${CLI_NAME} session --report
   $ ${CLI_NAME} session --patterns
+
+  # Grade components and export to CSV for tracking
+  $ ${CLI_NAME} grade --format csv -o migration-status.csv
+  $ ${CLI_NAME} grade --filter "grade:D,F" --format csv -o needs-attention.csv
 
   # Analyze component dependencies
   $ ${CLI_NAME} deps
