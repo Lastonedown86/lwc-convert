@@ -267,7 +267,24 @@ export function ConversionWizard(): React.ReactElement {
     <Screen title="Conversion Wizard" footerBindings={footerBindings}>
       <Box flexDirection="column" paddingY={1}>
         {/* Step indicator */}
-        <StepIndicator steps={WIZARD_STEPS} currentStep={wizard.currentStep} />
+        <Box
+          borderStyle="round"
+          borderColor={theme.accent}
+          paddingX={2}
+          marginBottom={1}
+          flexDirection="column"
+        >
+          <StepIndicator steps={WIZARD_STEPS} currentStep={wizard.currentStep} />
+          <Box marginTop={1}>
+            <Text color={theme.textMuted}>
+              Progress: {(() => {
+                const percent = ((wizard.currentStep + 1) / WIZARD_STEPS.length) * 100;
+                const filled = Math.round(percent / 10);
+                return '▓'.repeat(filled) + '░'.repeat(10 - filled) + ` ${Math.round(percent)}%`;
+              })()}
+            </Text>
+          </Box>
+        </Box>
 
         {/* Error message */}
         {conversionError && (

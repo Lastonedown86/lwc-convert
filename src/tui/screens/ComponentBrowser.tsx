@@ -9,6 +9,17 @@ import { useKeyBindings } from '../hooks/useKeyBindings.js';
 import { useVisibleRows, useScrollAdjustment } from '../hooks/useTerminalSize.js';
 import type { KeyBinding, TreeNode, ComponentInfo } from '../types.js';
 
+function getGradeBadge(grade?: string): string {
+  switch (grade) {
+    case 'A': return '🟢';
+    case 'B': return '🟡';
+    case 'C': return '🟠';
+    case 'D': return '🔴';
+    case 'F': return '⛔';
+    default: return '⚪';
+  }
+}
+
 export function ComponentBrowser(): React.ReactElement {
   const preferences = useStore((state) => state.preferences);
   const navigate = useStore((state) => state.navigate);
@@ -56,7 +67,9 @@ export function ComponentBrowser(): React.ReactElement {
         icon: '📦',
         children: filteredAura.map((component) => ({
           id: `aura-${component.id}`,
-          label: component.name,
+          label: component.grade
+            ? `${getGradeBadge(component.grade)} ${component.name} (${component.score})`
+            : component.name,
           icon: '⚡',
           metadata: {
             score: component.score,
@@ -80,7 +93,9 @@ export function ComponentBrowser(): React.ReactElement {
         icon: '📄',
         children: filteredVf.map((component) => ({
           id: `vf-${component.id}`,
-          label: component.name,
+          label: component.grade
+            ? `${getGradeBadge(component.grade)} ${component.name} (${component.score})`
+            : component.name,
           icon: '📄',
           metadata: {
             score: component.score,
