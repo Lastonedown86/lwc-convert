@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/Lastonedown86/lwc-convert/compare/v1.5.0...v1.6.0) (2026-01-27)
+
+
+### Features
+
+* enhance TUI with grade badges and step progress visualization ([bbaa7d8](https://github.com/Lastonedown86/lwc-convert/commit/bbaa7d89c68c891ec98e5907a2ecd2808b03c8bf))
+
 ## [1.5.0](https://github.com/Lastonedown86/lwc-convert/compare/v1.4.0...v1.5.0) (2026-01-27)
 
 
