@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.1](https://github.com/Lastonedown86/lwc-convert/compare/v1.6.0...v1.6.1) (2026-01-27)
+
+
+### Bug Fixes
+
+* use dynamic version in TUI header instead of hardcoded v1.3.1 ([c85a5bc](https://github.com/Lastonedown86/lwc-convert/commit/c85a5bc639e76f74a91d78e1e1ac2be719459849))
+
 ## [1.6.0](https://github.com/Lastonedown86/lwc-convert/compare/v1.5.0...v1.6.0) (2026-01-27)
 
 
