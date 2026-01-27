@@ -6,7 +6,11 @@
   <a href="#-quick-start">Quick Start</a> •
   <a href="#-features">Features</a> •
   <a href="#-conversion-mappings">Mappings</a> •
-  <a href="#-cli-reference">CLI Reference</a> •
+  <a href="#-cli-reference">CLI Reference</a>
+</p>
+
+---
+
 `lwc-convert` automates the migration of legacy Salesforce UI technologies to modern Lightning Web Components:
 
 | Source Technology | Target | Confidence |
@@ -48,7 +52,9 @@ Unlike batch tools that sacrifice accuracy, `lwc-convert` processes **one compon
 - Analyzes Apex controllers for VF pages
 - Detects patterns and suggests modern equivalents
 - Identifies potential issues upfront
-- **New!** 📊 **Complexity Grading**: Analyze components before conversion to estimate effort and identify risks.
+- **New!** 📊 **Complexity Grading**: Analyze components before conversion to estimate effort and identify risks
+- **New!** 📈 **CSV Export**: Export grading reports for team tracking and stakeholder updates
+- **New!** 🔔 **Update Notifications**: Get notified when new versions are available
 
 ### 📋 Conversion Notes
 
@@ -146,7 +152,13 @@ lwc-convert aura MyComponent --dry-run --verbose
 lwc-convert grade AccountCard --type aura
 
 # Scan entire project and export report
-lwc-convert grade --type both --format json --output report.json
+lwc-convert grade --type both --format json -o report.json
+
+# Export to CSV for team tracking (Excel/Sheets compatible)
+lwc-convert grade --format csv -o migration-status.csv
+
+# Filter to only problematic components
+lwc-convert grade --filter "grade:D,F" --format csv -o needs-attention.csv
 ```
 
 > **💡 Smart Path Resolution:** The CLI automatically searches common Salesforce project locations:
@@ -162,9 +174,12 @@ lwc-convert grade --type both --format json --output report.json
 ### Commands
 
 ```bash
+lwc-convert                       # Launch interactive TUI
 lwc-convert aura <name-or-path>   # Convert Aura component bundle
 lwc-convert vf <name-or-path>     # Convert Visualforce page
 lwc-convert grade [target]        # Assess conversion complexity
+lwc-convert deps [target]         # Analyze component dependencies
+lwc-convert session               # View session info and patterns
 ```
 
 ### Global Options
@@ -213,10 +228,38 @@ lwc-convert grade [target] [options]
 |--------|-------------|---------|
 | `-t, --type <type>` | Component type (`aura`, `vf`, `both`) | `both` |
 | `-o, --output <file>` | Output file for report | — |
-| `--format <format>` | Output format (`json`, `console`, `md`) | `console` |
+| `--format <format>` | Output format (`json`, `csv`, `console`) | `console` |
 | `--detailed` | Show detailed breakdown | `false` |
 | `--sort-by <field>` | Sort by `score`, `complexity`, or `name` | `score` |
 | `--filter <filter>` | Filter results (e.g., `grade:D,F`) | — |
+
+### Deps Command Options
+
+```bash
+lwc-convert deps [target] [options]
+```
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-t, --type <type>` | Component type (`aura`, `vf`, `both`) | `both` |
+| `-o, --output <file>` | Output file path | — |
+| `--format <format>` | Output format (`console`, `json`, `mermaid`) | `console` |
+| `--conversion-order` | Show recommended conversion order | `false` |
+| `--focus <component>` | Focus on specific component | — |
+| `--depth <n>` | Maximum depth to traverse (0 = unlimited) | `0` |
+| `--circular-only` | Only show circular dependencies | `false` |
+
+### Session Command Options
+
+```bash
+lwc-convert session [options]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--report` | Generate full session report |
+| `--patterns` | Show learned patterns from session |
+| `--cleanup` | Clean up session data |
 
 ---
 
@@ -287,6 +330,80 @@ export default class MyComponent extends LightningElement {
     }
 }
 ```
+
+---
+
+## 📊 Migration Tracking
+
+### CSV Export for Teams
+
+Export grading results to CSV for tracking migration progress in spreadsheets:
+
+```bash
+# Full project export
+lwc-convert grade --format csv -o migration-status.csv
+
+# Only components needing attention
+lwc-convert grade --filter "grade:D,F" --format csv -o needs-attention.csv
+```
+
+**CSV includes:**
+- Component name, type, and file path
+- Score (0-100) and letter grade (A-F)
+- Complexity level and estimated manual hours
+- Automated conversion percentage
+- Warning count per component
+- Summary section with totals and grade distribution
+
+### Dependency Analysis
+
+Visualize component relationships and plan conversion order:
+
+```bash
+# Show all dependencies
+lwc-convert deps
+
+# Get recommended conversion order (leaves first)
+lwc-convert deps --conversion-order
+
+# Focus on one component's dependency tree
+lwc-convert deps --focus AccountCard
+
+# Export as Mermaid diagram for documentation
+lwc-convert deps --format mermaid -o deps.md
+```
+
+### Session Learning
+
+The tool learns patterns during your session to improve suggestions:
+
+```bash
+# View session summary
+lwc-convert session
+
+# See learned conversion patterns
+lwc-convert session --patterns
+
+# Full session report
+lwc-convert session --report
+```
+
+---
+
+## 🔔 Update Notifications
+
+Starting with v1.5.0, `lwc-convert` automatically checks for updates and notifies you when a new version is available:
+
+```
+  ╭───────────────────────────────────────────────╮
+  │  Update available: 1.5.0 → 1.6.0             │
+  │  Run npm i -g lwc-convert to update          │
+  ╰───────────────────────────────────────────────╯
+```
+
+- **Non-blocking**: Check runs in background, doesn't slow commands
+- **Cached**: Only checks npm registry once per 24 hours
+- **Graceful**: Silently skips if offline or npm is unreachable
 
 ---
 
