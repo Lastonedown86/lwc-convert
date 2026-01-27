@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.4.0](https://github.com/Lastonedown86/lwc-convert/compare/v1.3.5...v1.4.0) (2026-01-27)
+
+
+### Features
+
+* detect Aura components that extend other components ([d24b304](https://github.com/Lastonedown86/lwc-convert/commit/d24b3044e2e6d6363a7f1e9d7de8e9ff2b1cb69d))
+
+
+### Bug Fixes
+
+* lock visible rows to initial terminal size on mount ([3ed116c](https://github.com/Lastonedown86/lwc-convert/commit/3ed116ccadf5a481daab1e4b7c512afbb9cbeb9e))
+* remove terminal resize listener to prevent disorienting re-renders ([da673c9](https://github.com/Lastonedown86/lwc-convert/commit/da673c96ee97f63dd9f3e813b2b6e0b329b1a156))
+* scroll to keep selection visible when terminal is resized ([df48338](https://github.com/Lastonedown86/lwc-convert/commit/df48338617822fd1434c25b84bd2dbfa5a7fe98c))
+
 ## [1.3.5](https://github.com/Lastonedown86/lwc-convert/compare/v1.3.4...v1.3.5) (2026-01-26)
 
 
