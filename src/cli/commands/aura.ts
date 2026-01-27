@@ -16,11 +16,18 @@ import { generateAuraFullConversion } from '../../generators/full-conversion';
 import { resolveAuraPath, formatSearchLocations } from '../../utils/path-resolver';
 import { sessionStore } from '../../utils/session-store';
 import { writePreviewFile, openPreview } from '../../utils/preview-generator';
+import { ensureProjectRoot } from '../../utils/project-detector.js';
 
 export async function convertAura(
   inputPath: string,
   options: AuraConversionOptions
 ): Promise<void> {
+  // Auto-detect project root
+  const { root, changed } = await ensureProjectRoot();
+  if (changed) {
+    logger.success(`Found project root: ${root}`);
+  }
+
   // Resolve the path (supports just component name)
   const resolved = await resolveAuraPath(inputPath);
   
@@ -157,7 +164,6 @@ export async function convertAura(
     }
 
     logger.divider();
-    logger.success('Conversion complete!');
 
     // Store conversion in session for learning
     if (result.testComparison) {
@@ -179,14 +185,23 @@ export async function convertAura(
     if (result.behaviorSpec) totalFiles++;
     if (result.testComparison) totalFiles += 3; // before spec, after test, comparison report
 
-    // Summary box with key info
+    // Show success toast
+    logger.successToast(
+      'Conversion Complete',
+      [
+        `${bundle.name} → ${result.bundle.name}`,
+        `${totalFiles} files created`,
+      ],
+      path.join(outputDir, result.bundle.name)
+    );
+
+    // Summary box with detailed info
     const sessionSummary = sessionStore.getSessionSummary();
     logger.summaryBox('Conversion Summary', [
       { label: 'Component', value: `${bundle.name} → ${result.bundle.name}`, type: 'success' },
       { label: 'Files created', value: `${totalFiles}`, type: 'info' },
       { label: 'Behaviors mapped', value: `${result.testComparison?.behaviorTests.length || 0}`, type: 'info' },
       { label: 'Warnings', value: `${result.warnings.length}`, type: result.warnings.length > 0 ? 'warn' : 'success' },
-      { label: 'Session conversions', value: `${sessionSummary.conversions}`, type: 'info' },
       { label: 'Output', value: path.join(outputDir, result.bundle.name), type: 'info' },
     ]);
 

@@ -147,6 +147,30 @@ class Logger {
   blank(): void {
     console.log('');
   }
+
+  // Success toast for completed operations
+  successToast(title: string, details: string[], outputPath?: string): void {
+    console.log('');
+    console.log(`${COLORS.green}  ╭─────────────────────────────────────────╮${COLORS.reset}`);
+    console.log(`${COLORS.green}  │${COLORS.reset}                                         ${COLORS.green}│${COLORS.reset}`);
+    console.log(`${COLORS.green}  │${COLORS.reset}            ${COLORS.bright}✨ Success! ✨${COLORS.reset}               ${COLORS.green}│${COLORS.reset}`);
+    console.log(`${COLORS.green}  │${COLORS.reset}                                         ${COLORS.green}│${COLORS.reset}`);
+
+    details.forEach(detail => {
+      const padded = detail.padEnd(38);
+      console.log(`${COLORS.green}  │${COLORS.reset}  ${padded} ${COLORS.green}│${COLORS.reset}`);
+    });
+
+    if (outputPath) {
+      console.log(`${COLORS.green}  │${COLORS.reset}                                         ${COLORS.green}│${COLORS.reset}`);
+      const pathText = `📁 ${outputPath}`.padEnd(38);
+      console.log(`${COLORS.green}  │${COLORS.reset}  ${pathText} ${COLORS.green}│${COLORS.reset}`);
+    }
+
+    console.log(`${COLORS.green}  │${COLORS.reset}                                         ${COLORS.green}│${COLORS.reset}`);
+    console.log(`${COLORS.green}  ╰─────────────────────────────────────────╯${COLORS.reset}`);
+    console.log('');
+  }
 }
 
 export const logger = new Logger();

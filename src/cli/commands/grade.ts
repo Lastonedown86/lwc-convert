@@ -6,6 +6,21 @@ import { GradingOptions, ComponentGrade, GradingSummary } from '../../grading/ty
 import { resolveAuraPath, resolveVfPath } from '../../utils/path-resolver';
 import { launchGradeTui, shouldUseInteractive } from '../tui/grade-tui';
 
+function getGradeEmoji(grade: string): string {
+  switch (grade) {
+    case 'A': return '🟢';
+    case 'B': return '🟡';
+    case 'C': return '🟠';
+    case 'D': return '🔴';
+    case 'F': return '⛔';
+    default: return '⚪';
+  }
+}
+
+function getComplexityIcon(complexity: string): string {
+  return complexity.includes('Complex') || complexity === 'Moderate' ? '⚠' : '✓';
+}
+
 export async function grade(
     target: string | undefined,
     options: any
@@ -169,17 +184,20 @@ function filterResults(results: ComponentGrade[], filter?: string): ComponentGra
 }
 
 function printConsoleReport(results: ComponentGrade[], summary: GradingSummary, detailed: boolean) {
-    // Summary Table
-    console.log('Component'.padEnd(30) + 'Type'.padEnd(10) + 'Score'.padEnd(10) + 'Grade'.padEnd(10) + 'Complexity');
-    console.log('-'.repeat(80));
+    console.log('');
+    console.log('Components:');
 
     results.forEach(r => {
+        const emoji = getGradeEmoji(r.letterGrade);
+        const icon = getComplexityIcon(r.complexity);
+        const effort = `${r.conversionEffort.manualHours.estimate}h`;
+
         console.log(
-            r.componentName.padEnd(30) +
-            r.componentType.padEnd(10) +
-            r.overallScore.toString().padEnd(10) +
-            r.letterGrade.padEnd(10) +
-            r.complexity
+            `  ${emoji} ${r.letterGrade.padEnd(2)}` +
+            `  ${r.componentName.padEnd(24)}` +
+            `Score: ${r.overallScore.toString().padStart(2)}   ` +
+            `Effort: ${effort.padStart(4)}   ` +
+            `${icon} ${r.complexity}`
         );
     });
 

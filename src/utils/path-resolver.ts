@@ -5,6 +5,7 @@
 
 import * as path from 'path';
 import fs from 'fs-extra';
+import { findProjectRoot } from './project-detector.js';
 
 // Common Aura component locations in Salesforce projects
 const AURA_SEARCH_PATHS = [
@@ -61,6 +62,10 @@ function isFullPath(inputPath: string): boolean {
  * If just a name is provided, searches common locations
  */
 export async function resolveAuraPath(input: string): Promise<ResolvedPath> {
+  // Try to find project root first
+  const projectRoot = await findProjectRoot();
+  const cwd = projectRoot || process.cwd();
+
   // If it's already a full path, just return it
   if (isFullPath(input)) {
     const resolved = path.resolve(input);
@@ -72,7 +77,6 @@ export async function resolveAuraPath(input: string): Promise<ResolvedPath> {
 
   // It's just a component name - search for it
   const componentName = input;
-  const cwd = process.cwd();
   const searchedLocations: string[] = [];
 
   for (const searchPath of AURA_SEARCH_PATHS) {
@@ -119,6 +123,10 @@ export async function resolveAuraPath(input: string): Promise<ResolvedPath> {
  * If just a name is provided, searches common locations for both .page and .component files
  */
 export async function resolveVfPath(input: string): Promise<ResolvedPath> {
+  // Try to find project root first
+  const projectRoot = await findProjectRoot();
+  const cwd = projectRoot || process.cwd();
+
   // If it's already a full path, just return it
   if (isFullPath(input)) {
     const resolved = path.resolve(input);
@@ -128,7 +136,6 @@ export async function resolveVfPath(input: string): Promise<ResolvedPath> {
     };
   }
 
-  const cwd = process.cwd();
   const searchedLocations: string[] = [];
 
   // Check if extension is already provided
@@ -192,6 +199,10 @@ export async function resolveVfPath(input: string): Promise<ResolvedPath> {
  * If just a name is provided, searches common locations
  */
 export async function resolveApexPath(input: string): Promise<ResolvedPath> {
+  // Try to find project root first
+  const projectRoot = await findProjectRoot();
+  const cwd = projectRoot || process.cwd();
+
   // If it's already a full path, just return it
   if (isFullPath(input)) {
     const resolved = path.resolve(input);
@@ -208,7 +219,6 @@ export async function resolveApexPath(input: string): Promise<ResolvedPath> {
     className = `${className}.cls`;
   }
 
-  const cwd = process.cwd();
   const searchedLocations: string[] = [];
 
   for (const searchPath of APEX_SEARCH_PATHS) {

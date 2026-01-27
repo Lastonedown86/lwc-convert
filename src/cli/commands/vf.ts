@@ -13,11 +13,18 @@ import { generateVfScaffolding } from '../../generators/scaffolding';
 import { generateVfFullConversion } from '../../generators/full-conversion';
 import { resolveVfPath, resolveApexPath, formatSearchLocations } from '../../utils/path-resolver';
 import { writePreviewFile, openPreview } from '../../utils/preview-generator';
+import { ensureProjectRoot } from '../../utils/project-detector.js';
 
 export async function convertVf(
   inputPath: string,
   options: VfConversionOptions
 ): Promise<void> {
+  // Auto-detect project root
+  const { root, changed } = await ensureProjectRoot();
+  if (changed) {
+    logger.success(`Found project root: ${root}`);
+  }
+
   // Resolve the VF page path (supports just page name)
   const resolved = await resolveVfPath(inputPath);
   
@@ -158,12 +165,22 @@ export async function convertVf(
     }
 
     logger.divider();
-    logger.success('Conversion complete!');
 
-    // Summary box with key info
+    // Show success toast
+    const totalFiles = writtenFiles.length + 1;
+    logger.successToast(
+      'Conversion Complete',
+      [
+        `${vfPage.name} → ${result.bundle.name}`,
+        `${totalFiles} files created`,
+      ],
+      path.join(outputDir, result.bundle.name)
+    );
+
+    // Summary box with detailed info
     logger.summaryBox('Conversion Summary', [
       { label: 'Page', value: `${vfPage.name} → ${result.bundle.name}`, type: 'success' },
-      { label: 'Files created', value: `${writtenFiles.length + 1}`, type: 'info' },
+      { label: 'Files created', value: `${totalFiles}`, type: 'info' },
       { label: 'Warnings', value: `${result.warnings.length}`, type: result.warnings.length > 0 ? 'warn' : 'success' },
       { label: 'Output', value: path.join(outputDir, result.bundle.name), type: 'info' },
     ]);
