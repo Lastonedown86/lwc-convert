@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0](https://github.com/Lastonedown86/lwc-convert/compare/v1.6.1...v1.7.0) (2026-01-27)
+
+
+### Features
+
+* add 3 UX quick wins - prettier grading, project root detection, and success toast ([8f79780](https://github.com/Lastonedown86/lwc-convert/commit/8f797804ec46fed3fef6443cb5f5c8f5b3a99211))
+
 ## [1.6.1](https://github.com/Lastonedown86/lwc-convert/compare/v1.6.0...v1.6.1) (2026-01-27)
 
 
