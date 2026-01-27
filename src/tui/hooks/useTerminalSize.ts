@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 
 export interface TerminalSize {
   columns: number;
@@ -10,30 +10,40 @@ const HEADER_ROWS = 2;
 const FOOTER_ROWS = 2;
 
 /**
+ * Get the initial terminal size (captured once on mount).
+ * Does NOT react to resize events - use this for stable layout calculations.
+ */
+function getInitialTerminalSize(): TerminalSize {
+  const columns = process.stdout.columns || 80;
+  const rows = process.stdout.rows || 24;
+  return {
+    columns,
+    rows,
+    contentRows: rows - HEADER_ROWS - FOOTER_ROWS,
+  };
+}
+
+/**
+ * Get terminal size captured once on mount.
+ * Components using this will NOT re-render when terminal is resized.
+ * Use this for stable visible row calculations.
+ */
+export function useInitialTerminalSize(): TerminalSize {
+  const [size] = useState<TerminalSize>(getInitialTerminalSize);
+  return size;
+}
+
+/**
  * Get terminal size and react to resize events.
  * When terminal is resized, the size updates which allows
  * components to adjust their scroll position accordingly.
  */
 export function useTerminalSize(): TerminalSize {
-  const [size, setSize] = useState<TerminalSize>(() => {
-    const columns = process.stdout.columns || 80;
-    const rows = process.stdout.rows || 24;
-    return {
-      columns,
-      rows,
-      contentRows: rows - HEADER_ROWS - FOOTER_ROWS,
-    };
-  });
+  const [size, setSize] = useState<TerminalSize>(getInitialTerminalSize);
 
   useEffect(() => {
     const handleResize = (): void => {
-      const columns = process.stdout.columns || 80;
-      const rows = process.stdout.rows || 24;
-      setSize({
-        columns,
-        rows,
-        contentRows: rows - HEADER_ROWS - FOOTER_ROWS,
-      });
+      setSize(getInitialTerminalSize());
     };
 
     process.stdout.on('resize', handleResize);
@@ -83,12 +93,17 @@ export function useScrollAdjustment(
   }, [selectedIndex, scrollOffset, visibleRows, totalItems, onScrollChange]);
 }
 
+/**
+ * Get the number of visible rows for scrollable content.
+ * Uses initial terminal size so components don't resize when terminal changes.
+ */
 export function useVisibleRows(
   preferredRows: number | 'auto',
   minRows: number = 5,
   maxRows: number = 20
 ): number {
-  const { contentRows } = useTerminalSize();
+  // Use initial size so visible rows stay constant during resize
+  const { contentRows } = useInitialTerminalSize();
 
   if (preferredRows === 'auto') {
     // Reserve space for header, summary, grade distribution, filter/sort bar, scroll indicator
