@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Box, Text } from 'ink';
 import { Screen } from '../components/layout/Screen.js';
 import { Tree } from '../components/data/Tree.js';
@@ -6,7 +6,7 @@ import { SearchInput } from '../components/forms/TextInput.js';
 import { useStore } from '../store/index.js';
 import { getTheme, getGradeColor } from '../themes/index.js';
 import { useKeyBindings } from '../hooks/useKeyBindings.js';
-import { useVisibleRows } from '../hooks/useTerminalSize.js';
+import { useVisibleRows, useScrollAdjustment } from '../hooks/useTerminalSize.js';
 import type { KeyBinding, TreeNode, ComponentInfo } from '../types.js';
 
 export function ComponentBrowser(): React.ReactElement {
@@ -116,9 +116,22 @@ export function ComponentBrowser(): React.ReactElement {
   }, [treeData, browser.expandedNodes]);
 
   const selectedIndex = flatNodes.findIndex((n) => n.id === selectedId);
-  
+
   // Calculate visible rows for scrolling (limit to prevent overflow)
   const maxVisibleRows = Math.min(visibleRows, 10);
+
+  // Adjust scroll position when terminal resizes to keep selection visible
+  const handleScrollChange = useCallback((newOffset: number) => {
+    updateBrowserState({ scrollOffset: newOffset });
+  }, [updateBrowserState]);
+
+  useScrollAdjustment(
+    selectedIndex >= 0 ? selectedIndex : 0,
+    browser.scrollOffset,
+    maxVisibleRows,
+    flatNodes.length,
+    handleScrollChange
+  );
 
   const footerBindings: KeyBinding[] = [
     { key: 'escape', action: () => isSearching ? setIsSearching(false) : goBack(), description: 'Back' },

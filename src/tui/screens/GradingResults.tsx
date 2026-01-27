@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Text } from 'ink';
 import { Screen } from '../components/layout/Screen.js';
 import { Table } from '../components/data/Table.js';
@@ -6,7 +6,7 @@ import { GradeDistribution, GradeBadge, Spinner } from '../components/feedback/i
 import { useStore, useFilteredGradingResults, useGradeDistribution } from '../store/index.js';
 import { getTheme, getGradeColor } from '../themes/index.js';
 import { useKeyBindings } from '../hooks/useKeyBindings.js';
-import { useVisibleRows } from '../hooks/useTerminalSize.js';
+import { useVisibleRows, useScrollAdjustment } from '../hooks/useTerminalSize.js';
 import { Grader } from '../../grading/grader.js';
 import type { KeyBinding, TableColumn, GradeLevel, GradingSortBy } from '../types.js';
 import type { ComponentGrade } from '../../grading/types.js';
@@ -75,6 +75,19 @@ export function GradingResults(): React.ReactElement {
 
   const filteredResults = useFilteredGradingResults();
   const distribution = useGradeDistribution();
+
+  // Adjust scroll position when terminal resizes to keep selection visible
+  const handleScrollChange = useCallback((newOffset: number) => {
+    updateGradingState({ scrollOffset: newOffset });
+  }, [updateGradingState]);
+
+  useScrollAdjustment(
+    grading.selectedIndex,
+    grading.scrollOffset,
+    visibleRows,
+    filteredResults.length,
+    handleScrollChange
+  );
 
   const columns: TableColumn<ComponentGrade>[] = [
     { key: 'componentName', header: 'Component', width: 25, align: 'left' },
