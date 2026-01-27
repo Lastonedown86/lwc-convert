@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/Lastonedown86/lwc-convert/compare/v1.4.0...v1.5.0) (2026-01-27)
+
+
+### Features
+
+* add CSV export for grading and update notifications ([5ddf4e5](https://github.com/Lastonedown86/lwc-convert/commit/5ddf4e5b9d1ddcbb1f7db3add33d0bde8ac7f6df))
+
 ## [1.4.0](https://github.com/Lastonedown86/lwc-convert/compare/v1.3.5...v1.4.0) (2026-01-27)
 
 
