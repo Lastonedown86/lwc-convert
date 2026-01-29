@@ -26,11 +26,11 @@ export function Checkbox({
     ? theme.success
     : theme.textMuted;
 
+  const arrowColor = isFocused ? theme.accent : theme.background;
+
   return (
     <Box>
-      <Text color={isFocused ? theme.accent : theme.textMuted}>
-        {isFocused ? '▶ ' : '  '}
-      </Text>
+      <Text color={arrowColor}>{'▶ '}</Text>
       <Text color={checkboxColor}>{checked ? '[✓]' : '[ ]'}</Text>
       <Text
         color={disabled ? theme.textMuted : theme.text}
@@ -65,11 +65,11 @@ export function Radio({
     ? theme.primary
     : theme.textMuted;
 
+  const arrowColor = isFocused ? theme.accent : theme.background;
+
   return (
     <Box>
-      <Text color={isFocused ? theme.accent : theme.textMuted}>
-        {isFocused ? '▶ ' : '  '}
-      </Text>
+      <Text color={arrowColor}>{'▶ '}</Text>
       <Text color={radioColor}>{selected ? '(●)' : '( )'}</Text>
       <Text
         color={disabled ? theme.textMuted : theme.text}

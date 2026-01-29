@@ -60,7 +60,7 @@ export function ConversionWizard(): React.ReactElement {
     if (wizard.currentStep === 0 && !wizard.sourceType) {
       updateWizardState({ sourceType: 'aura' });
     }
-    
+
     if (wizard.currentStep < WIZARD_STEPS.length - 1) {
       updateWizardState({ currentStep: wizard.currentStep + 1 });
       setFocusedField(0);
@@ -268,9 +268,7 @@ export function ConversionWizard(): React.ReactElement {
       <Box flexDirection="column" paddingY={1}>
         {/* Step indicator */}
         <Box
-          borderStyle="round"
-          borderColor={theme.accent}
-          paddingX={2}
+          paddingX={0}
           marginBottom={1}
           flexDirection="column"
         >
@@ -302,9 +300,7 @@ export function ConversionWizard(): React.ReactElement {
         {/* Step content */}
         <Box
           flexDirection="column"
-          borderStyle="single"
-          borderColor={theme.border}
-          paddingX={2}
+          paddingX={1}
           paddingY={1}
         >
           {wizard.currentStep === 0 && (
@@ -405,15 +401,15 @@ function SourceStep({
 
   // When field 0 is focused, highlight the currently selected radio
   const radioIndex = sourceType === 'vf' ? 1 : 0;
-  
+
   // Visible rows for component list
   const visibleRows = 5;
-  
+
   // Calculate available width for component names (account for borders, padding, selector)
   const listWidth = Math.max(columns - 12, 40); // 12 = borders + padding + margins
-  
+
   // Use the scroll offset directly from parent (which keeps it in sync with selection)
-  const visibleComponents = useMemo(() => 
+  const visibleComponents = useMemo(() =>
     components.slice(componentListScrollOffset, componentListScrollOffset + visibleRows),
     [components, componentListScrollOffset, visibleRows]
   );
@@ -452,10 +448,8 @@ function SourceStep({
               </Text>
             )}
           </Box>
-          <Box 
-            flexDirection="column" 
-            borderStyle="single" 
-            borderColor={focusedField === 2 ? theme.accent : theme.border}
+          <Box
+            flexDirection="column"
             paddingX={1}
             marginTop={1}
             height={visibleRows + 2}

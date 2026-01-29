@@ -14,6 +14,10 @@ function getPackageVersion(): string {
   }
 
   try {
+    // Get the directory of the current module
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+
     // Try multiple paths to find package.json
     const possiblePaths = [
       join(__dirname, '..', '..', 'package.json'),
