@@ -6,6 +6,14 @@
 import * as path from 'path';
 import fs from 'fs-extra';
 import { findProjectRoot } from './project-detector.js';
+import {
+  suggestAuraComponents,
+  suggestVfPages,
+  suggestApexControllers,
+  formatSuggestions,
+  getContextualHelp,
+  FuzzySuggestion,
+} from './fuzzy-suggest.js';
 
 // Common Aura component locations in Salesforce projects
 const AURA_SEARCH_PATHS = [
@@ -43,6 +51,8 @@ export interface ResolvedPath {
   found: boolean;
   path: string;
   searchedLocations?: string[];
+  suggestions?: FuzzySuggestion[];
+  contextualHelp?: string;
 }
 
 /**
@@ -111,10 +121,16 @@ export async function resolveAuraPath(input: string): Promise<ResolvedPath> {
     }
   }
 
+  // Component not found - get fuzzy suggestions
+  const suggestions = await suggestAuraComponents(componentName);
+  const contextualHelp = getContextualHelp('aura', componentName);
+
   return {
     found: false,
     path: input,
     searchedLocations,
+    suggestions,
+    contextualHelp,
   };
 }
 
@@ -187,10 +203,16 @@ export async function resolveVfPath(input: string): Promise<ResolvedPath> {
     }
   }
 
+  // Page not found - get fuzzy suggestions
+  const suggestions = await suggestVfPages(input);
+  const contextualHelp = getContextualHelp('vf', input);
+
   return {
     found: false,
     path: input,
     searchedLocations,
+    suggestions,
+    contextualHelp,
   };
 }
 
@@ -234,10 +256,16 @@ export async function resolveApexPath(input: string): Promise<ResolvedPath> {
     }
   }
 
+  // Controller not found - get fuzzy suggestions
+  const suggestions = await suggestApexControllers(input);
+  const contextualHelp = getContextualHelp('apex', input);
+
   return {
     found: false,
     path: input,
     searchedLocations,
+    suggestions,
+    contextualHelp,
   };
 }
 

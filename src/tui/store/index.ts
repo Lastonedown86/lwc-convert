@@ -15,6 +15,18 @@ import { DEFAULT_PREFERENCES } from '../types.js';
 import { loadPreferencesSync, savePreferences } from './persistence.js';
 import type { ComponentGrade, GradingSummary } from '../../grading/types.js';
 
+export interface SettingsState {
+  selectedIndex: number;
+  modifiedSettings: Set<string>;
+}
+
+export interface DashboardState {
+  selectedIndex: number;
+  selectedCategory: string;
+  isRefreshing: boolean;
+  lastRefresh: Date | null;
+}
+
 export interface AppState {
   // Navigation
   currentScreen: ScreenType;
@@ -41,6 +53,8 @@ export interface AppState {
   browser: BrowserState;
   grading: GradingDisplayState;
   wizard: WizardState;
+  settings: SettingsState;
+  dashboard: DashboardState;
 
   // Actions - Navigation
   navigate: (screen: ScreenType) => void;
@@ -50,6 +64,14 @@ export interface AppState {
 
   // Actions - Preferences
   updatePreferences: (prefs: Partial<UserPreferences>) => Promise<void>;
+  resetSetting: (id: keyof UserPreferences) => Promise<void>;
+
+  // Actions - Settings
+  updateSettingsState: (state: Partial<SettingsState>) => void;
+
+  // Actions - Dashboard
+  updateDashboardState: (state: Partial<DashboardState>) => void;
+  refreshProject: () => Promise<void>;
 
   // Actions - Project
   setProjectPath: (path: string) => void;
@@ -106,6 +128,18 @@ const initialWizardState: WizardState = {
   controllerPaths: [],
 };
 
+const initialSettingsState: SettingsState = {
+  selectedIndex: 0,
+  modifiedSettings: new Set(),
+};
+
+const initialDashboardState: DashboardState = {
+  selectedIndex: 0,
+  selectedCategory: 'quick-start',
+  isRefreshing: false,
+  lastRefresh: null,
+};
+
 export const useStore = create<AppState>((set, get) => ({
   // Initial state
   currentScreen: 'dashboard',
@@ -127,6 +161,8 @@ export const useStore = create<AppState>((set, get) => ({
   browser: initialBrowserState,
   grading: initialGradingState,
   wizard: { ...initialWizardState, outputDir: loadPreferencesSync().defaultOutputDir },
+  settings: initialSettingsState,
+  dashboard: initialDashboardState,
 
   // Navigation actions
   navigate: (screen: ScreenType) => {
@@ -166,6 +202,56 @@ export const useStore = create<AppState>((set, get) => ({
     const newPrefs = { ...get().preferences, ...prefs };
     set({ preferences: newPrefs });
     await savePreferences(newPrefs);
+  },
+
+  resetSetting: async (id: keyof UserPreferences) => {
+    const defaultValue = DEFAULT_PREFERENCES[id];
+    await get().updatePreferences({ [id]: defaultValue });
+  },
+
+  // Settings actions
+  updateSettingsState: (state: Partial<SettingsState>) => {
+    set((current) => ({
+      settings: { ...current.settings, ...state },
+    }));
+  },
+
+  // Dashboard actions
+  updateDashboardState: (state: Partial<DashboardState>) => {
+    set((current) => ({
+      dashboard: { ...current.dashboard, ...state },
+    }));
+  },
+
+  refreshProject: async () => {
+    const { projectPath, setComponents, setProjectHealth, dashboard } = get();
+
+    set({
+      dashboard: { ...dashboard, isRefreshing: true },
+    });
+
+    try {
+      // Dynamic import to avoid circular dependencies
+      const { discoverComponents } = await import('../utils/discovery.js');
+      const discovered = await discoverComponents(projectPath);
+
+      setComponents(discovered.aura, discovered.vf);
+      setProjectHealth({
+        auraCount: discovered.aura.length,
+        vfCount: discovered.vf.length,
+        avgScore: discovered.avgScore,
+        avgGrade: discovered.avgGrade as GradeLevel,
+        readyToConvert: discovered.aura.length + discovered.vf.length,
+      });
+
+      set({
+        dashboard: { ...get().dashboard, isRefreshing: false, lastRefresh: new Date() },
+      });
+    } catch (error) {
+      set({
+        dashboard: { ...get().dashboard, isRefreshing: false },
+      });
+    }
   },
 
   // Project actions

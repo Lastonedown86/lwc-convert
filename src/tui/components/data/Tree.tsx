@@ -85,14 +85,14 @@ export function Tree({
           prefix = ' '.repeat(depth * indentSize);
         }
 
+        const arrowColor = isSelected ? theme.accent : theme.background;
+
         return (
           <Box
             key={node.id}
           >
             {/* Selection indicator */}
-            <Text color={isSelected ? theme.accent : theme.text}>
-              {isSelected ? '▶' : ' '}
-            </Text>
+            <Text color={arrowColor}>{'▶'}</Text>
 
             {/* Tree guides */}
             <Text color={theme.textMuted}>{prefix}</Text>

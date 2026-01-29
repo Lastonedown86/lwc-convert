@@ -9,3 +9,6 @@ export type { FooterProps, FooterHintProps } from './Footer.js';
 
 export { Modal } from './Modal.js';
 export type { ModalProps } from './Modal.js';
+
+export { BorderedPanel } from './BorderedPanel.js';
+export type { BorderedPanelProps } from './BorderedPanel.js';

@@ -14,6 +14,7 @@ import { transformAuraMarkup } from '../../transformers/aura-to-lwc/markup';
 import { generateAuraScaffolding } from '../../generators/scaffolding';
 import { generateAuraFullConversion } from '../../generators/full-conversion';
 import { resolveAuraPath, formatSearchLocations } from '../../utils/path-resolver';
+import { formatSuggestions } from '../../utils/fuzzy-suggest';
 import { sessionStore } from '../../utils/session-store';
 import { writePreviewFile, openPreview } from '../../utils/preview-generator';
 import { ensureProjectRoot } from '../../utils/project-detector.js';
@@ -35,8 +36,10 @@ export async function convertAura(
     const searchInfo = resolved.searchedLocations && resolved.searchedLocations.length > 0
       ? `\nSearched in:\n${formatSearchLocations(resolved.searchedLocations, process.cwd())}`
       : '';
+    const suggestions = resolved.suggestions ? formatSuggestions(resolved.suggestions) : '';
+    const helpText = resolved.contextualHelp ? `\n\nTips:\n${resolved.contextualHelp}` : '';
     throw new Error(
-      `Component not found: ${inputPath}${searchInfo}\n\nTip: You can provide just the component name (e.g., "AccountCard") or a full path (e.g., "./force-app/main/default/aura/AccountCard")`
+      `Component not found: ${inputPath}${suggestions}${searchInfo}${helpText}`
     );
   }
 
@@ -206,15 +209,7 @@ export async function convertAura(
     ]);
 
     if (result.warnings.length > 0) {
-      if (options.verbose) {
-        logger.subheader('Warnings:');
-        for (const warning of result.warnings) {
-          logger.todo(warning);
-        }
-      } else {
-        logger.info('Run with --verbose to see all warnings');
-      }
-      logger.blank();
+      logger.warningSummary(result.warnings, options.verbose);
     }
 
     // Next steps guidance
