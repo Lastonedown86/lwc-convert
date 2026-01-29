@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0](https://github.com/Lastonedown86/lwc-convert/compare/v1.7.0...v1.8.0) (2026-01-29)
+
+
+### Features
+
+* Interactive Dashboard and Settings Redesign ([#33](https://github.com/Lastonedown86/lwc-convert/issues/33)) ([32f36eb](https://github.com/Lastonedown86/lwc-convert/commit/32f36ebbcd3b5512abdc32a212c9c5eb3494d66f))
+
 ## [1.7.0](https://github.com/Lastonedown86/lwc-convert/compare/v1.6.1...v1.7.0) (2026-01-27)
 
 

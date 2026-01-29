@@ -1,6 +1,6 @@
 {
   "name": "lwc-convert",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "CLI tool to convert Salesforce Aura and Visualforce components to Lightning Web Components",
   "type": "module",
   "main": "dist/index.js",
