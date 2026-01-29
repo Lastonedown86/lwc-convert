@@ -208,6 +208,15 @@ function printConsoleReport(results: ComponentGrade[], summary: GradingSummary, 
         { label: 'Manual Effort', value: `${summary.totalEffort.manualHours.estimate} hours`, type: 'warn' }
     ]);
 
+    // Smart mode recommendation based on grading results
+    const totalWarnings = results.reduce((sum, r) => sum + r.warnings.length, 0);
+    logger.modeRecommendation(
+        summary.averageGrade,
+        summary.averageScore,
+        totalWarnings,
+        summary.totalComponents
+    );
+
     if (detailed) {
         logger.divider();
         logger.subheader('Detailed Breakdown');

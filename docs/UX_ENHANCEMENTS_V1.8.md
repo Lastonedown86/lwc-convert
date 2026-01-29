@@ -10,6 +10,7 @@ This document tracks the UX quick wins implemented for v1.8.0, building on the v
 | 2 | Contextual Error Messages | Done | "Did you mean?" suggestions for typos |
 | 3 | Keyboard Shortcut Overlay | Done | Press `?` in TUI for shortcuts |
 | 4 | First-Time Welcome Banner | Done | Guided onboarding for new users |
+| 5 | Smart Mode Recommendation | Done | Suggests scaffolding vs full based on grade |
 
 ---
 
@@ -218,6 +219,62 @@ Shows a welcome card at the top of the Dashboard:
 
 ---
 
+## 5. Smart Mode Recommendation
+
+### What it does
+After grading components, the tool now suggests whether to use Scaffolding or Full conversion mode based on the complexity analysis.
+
+### Example Output
+
+**For complex components (Grade D/F or score < 50):**
+```
+💡 Conversion Mode Recommendation
+──────────────────────────────────────────
+   📝 Scaffolding Mode (Recommended)
+   Your components have high complexity.
+   Scaffolding generates a skeleton with TODOs for
+   manual completion - safer for complex conversions.
+
+   Run: lwc-convert aura <component>
+```
+
+**For simple components (Grade A/B and score >= 75):**
+```
+💡 Conversion Mode Recommendation
+──────────────────────────────────────────
+   ⚡ Full Conversion (May work well)
+   Your components scored well (B, 78/100).
+   Full conversion attempts complete transformation.
+   Review output carefully and test thoroughly.
+
+   Run: lwc-convert aura <component> --full
+```
+
+**For moderate complexity:**
+```
+💡 Conversion Mode Recommendation
+──────────────────────────────────────────
+   📝 Scaffolding Mode (Recommended)
+   For moderate complexity, scaffolding provides a
+   safe starting point with clear TODO markers.
+
+   Run: lwc-convert aura <component>
+```
+
+### Decision Logic
+| Condition | Recommendation |
+|-----------|----------------|
+| Grade D/F or Score < 50 | Scaffolding (complex) |
+| Warnings/Component > 5 | Scaffolding (many warnings) |
+| Grade A/B and Score >= 75 | Full Conversion (may work) |
+| Everything else | Scaffolding (safe default) |
+
+### Files Changed
+- `src/utils/logger.ts` - Added `modeRecommendation()` method
+- `src/cli/commands/grade.ts` - Calls recommendation after summary
+
+---
+
 ## Testing the Changes
 
 ### Warning Summary
@@ -251,6 +308,14 @@ rm ~/.lwc-convert/.first-run-complete
 lwc-convert
 # Or legacy TUI
 lwc-convert --legacy-tui
+```
+
+### Smart Mode Recommendation
+```bash
+# Grade components to see recommendation
+lwc-convert grade
+# Grade specific component
+lwc-convert grade AccountCard --type aura
 ```
 
 ---

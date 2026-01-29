@@ -240,6 +240,40 @@ class Logger {
     console.log('');
   }
 
+  // Smart mode recommendation based on grading results
+  modeRecommendation(avgGrade: string, avgScore: number, totalWarnings: number, componentCount: number): void {
+    const isComplex = ['D', 'F'].includes(avgGrade) || avgScore < 50;
+    const hasHighWarnings = totalWarnings / Math.max(componentCount, 1) > 5;
+    const isSimple = ['A', 'B'].includes(avgGrade) && avgScore >= 75;
+
+    console.log('');
+    console.log(`${COLORS.bright}${COLORS.cyan}  💡 Conversion Mode Recommendation${COLORS.reset}`);
+    console.log(`${COLORS.dim}  ${'─'.repeat(40)}${COLORS.reset}`);
+
+    if (isComplex || hasHighWarnings) {
+      console.log(`   ${COLORS.yellow}📝 Scaffolding Mode${COLORS.reset} ${COLORS.bright}(Recommended)${COLORS.reset}`);
+      console.log(`   ${COLORS.dim}Your components have ${isComplex ? 'high complexity' : 'many warnings'}.${COLORS.reset}`);
+      console.log(`   ${COLORS.dim}Scaffolding generates a skeleton with TODOs for${COLORS.reset}`);
+      console.log(`   ${COLORS.dim}manual completion - safer for complex conversions.${COLORS.reset}`);
+      console.log('');
+      console.log(`   ${COLORS.dim}Run:${COLORS.reset} lwc-convert aura <component>`);
+    } else if (isSimple) {
+      console.log(`   ${COLORS.green}⚡ Full Conversion${COLORS.reset} ${COLORS.bright}(May work well)${COLORS.reset}`);
+      console.log(`   ${COLORS.dim}Your components scored well (${avgGrade}, ${avgScore}/100).${COLORS.reset}`);
+      console.log(`   ${COLORS.dim}Full conversion attempts complete transformation.${COLORS.reset}`);
+      console.log(`   ${COLORS.dim}Review output carefully and test thoroughly.${COLORS.reset}`);
+      console.log('');
+      console.log(`   ${COLORS.dim}Run:${COLORS.reset} lwc-convert aura <component> --full`);
+    } else {
+      console.log(`   ${COLORS.yellow}📝 Scaffolding Mode${COLORS.reset} ${COLORS.bright}(Recommended)${COLORS.reset}`);
+      console.log(`   ${COLORS.dim}For moderate complexity, scaffolding provides a${COLORS.reset}`);
+      console.log(`   ${COLORS.dim}safe starting point with clear TODO markers.${COLORS.reset}`);
+      console.log('');
+      console.log(`   ${COLORS.dim}Run:${COLORS.reset} lwc-convert aura <component>`);
+    }
+    console.log('');
+  }
+
   // Success toast for completed operations
   successToast(title: string, details: string[], outputPath?: string): void {
     console.log('');
