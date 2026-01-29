@@ -6,6 +6,7 @@ import { useStore } from '../store/index.js';
 import { getTheme } from '../themes/index.js';
 import { useKeyBindings } from '../hooks/useKeyBindings.js';
 import { discoverComponents } from '../utils/discovery.js';
+import { isFirstTimeSync, markFirstTimeCompleteSync, getWelcomeContent } from '../../utils/first-time.js';
 import type { KeyBinding, GradeLevel } from '../types.js';
 
 // Helper to pad text to fixed width to prevent Ink rendering artifacts
@@ -29,6 +30,7 @@ export function Dashboard(): React.ReactElement {
   const hasData = auraComponents.length > 0 || vfComponents.length > 0 || projectHealth !== null;
   const [isLoading, setIsLoading] = useState(!hasData);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [showFirstTime, setShowFirstTime] = useState(isFirstTimeSync());
 
   // Discover components on mount or when refreshKey changes
   useEffect(() => {
@@ -63,13 +65,20 @@ export function Dashboard(): React.ReactElement {
     setRefreshKey((prev) => prev + 1);
   };
 
-  const footerBindings: KeyBinding[] = [
-    { key: 'c', action: () => navigate('wizard'), description: 'Convert' },
-    { key: 'g', action: () => navigate('grading'), description: 'Grade' },
-    { key: 'b', action: () => navigate('browser'), description: 'Browse' },
-    { key: 's', action: () => navigate('settings'), description: 'Settings' },
-    { key: 'r', action: refresh, description: 'Refresh' },
-  ];
+  const dismissFirstTime = (): void => {
+    markFirstTimeCompleteSync();
+    setShowFirstTime(false);
+  };
+
+  const footerBindings: KeyBinding[] = showFirstTime
+    ? [{ key: 'return', action: dismissFirstTime, description: 'Continue' }]
+    : [
+        { key: 'c', action: () => navigate('wizard'), description: 'Convert' },
+        { key: 'g', action: () => navigate('grading'), description: 'Grade' },
+        { key: 'b', action: () => navigate('browser'), description: 'Browse' },
+        { key: 's', action: () => navigate('settings'), description: 'Settings' },
+        { key: 'r', action: refresh, description: 'Refresh' },
+      ];
 
   useKeyBindings(footerBindings);
 
@@ -78,9 +87,51 @@ export function Dashboard(): React.ReactElement {
   // Fixed width for text content inside 30-char wide boxes (minus padding/borders)
   const textWidth = 24;
 
+  // Get welcome content for first-time users
+  const welcomeContent = showFirstTime ? getWelcomeContent() : null;
+
   return (
     <Screen title="Dashboard" footerBindings={footerBindings}>
       <Box flexDirection="column" paddingY={1}>
+        {/* First-time welcome banner */}
+        {showFirstTime && welcomeContent && (
+          <Box
+            flexDirection="column"
+            borderStyle="round"
+            borderColor={theme.accent}
+            paddingX={2}
+            paddingY={1}
+            marginBottom={1}
+          >
+            <Text color={theme.accent} bold>
+              🎉 {welcomeContent.title}
+            </Text>
+            <Box marginTop={1} flexDirection="column">
+              {welcomeContent.workflows.map((workflow, idx) => (
+                <Box key={idx} marginBottom={idx < welcomeContent.workflows.length - 1 ? 1 : 0}>
+                  <Text>
+                    <Text color={theme.primary}>{workflow.icon}</Text>
+                    {' '}
+                    <Text bold>{workflow.name}</Text>
+                    <Text color={theme.textMuted}> - {workflow.description}</Text>
+                  </Text>
+                </Box>
+              ))}
+            </Box>
+            <Box marginTop={1} flexDirection="column">
+              <Text color={theme.textMuted} dimColor>Quick tips:</Text>
+              {welcomeContent.tips.slice(0, 2).map((tip, idx) => (
+                <Text key={idx} color={theme.textMuted}> • {tip}</Text>
+              ))}
+            </Box>
+            <Box marginTop={1}>
+              <Text color={theme.textMuted}>
+                Press any key to continue...
+              </Text>
+            </Box>
+          </Box>
+        )}
+
         {/* Welcome message */}
         <Box flexDirection="column" marginBottom={1}>
           <Text color={theme.text} bold>

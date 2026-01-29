@@ -33,6 +33,27 @@ const ICONS = {
   vf: '📋',
 };
 
+// Warning categories for aggregation
+const WARNING_CATEGORIES: { pattern: RegExp; label: string; icon: string }[] = [
+  { pattern: /apex|@auraenabled|controller/i, label: 'Apex Dependencies', icon: '⚙️' },
+  { pattern: /event|handler|fire|dispatch/i, label: 'Event Handling', icon: '📡' },
+  { pattern: /aura:attribute|v\.|attribute/i, label: 'Attributes/Properties', icon: '📝' },
+  { pattern: /label|custom label|\$label/i, label: 'Custom Labels', icon: '🏷️' },
+  { pattern: /static resource|ltng:require/i, label: 'Static Resources', icon: '📦' },
+  { pattern: /permission|access|sharing/i, label: 'Permissions', icon: '🔒' },
+  { pattern: /force:|ui:|lightning:/i, label: 'Base Components', icon: '🧱' },
+  { pattern: /css|style|slds/i, label: 'Styling', icon: '🎨' },
+  { pattern: /navigate|pageref|url/i, label: 'Navigation', icon: '🧭' },
+  { pattern: /aura:if|aura:iteration|render/i, label: 'Conditional/Loop', icon: '🔄' },
+];
+
+export interface WarningCategory {
+  label: string;
+  icon: string;
+  count: number;
+  examples: string[];
+}
+
 export interface LoggerOptions {
   verbose: boolean;
 }
@@ -145,6 +166,77 @@ class Logger {
 
   // Blank line
   blank(): void {
+    console.log('');
+  }
+
+  // Categorize warnings into groups for summary display
+  categorizeWarnings(warnings: string[]): WarningCategory[] {
+    const categories: Map<string, WarningCategory> = new Map();
+    const uncategorized: string[] = [];
+
+    for (const warning of warnings) {
+      let matched = false;
+      for (const cat of WARNING_CATEGORIES) {
+        if (cat.pattern.test(warning)) {
+          const existing = categories.get(cat.label);
+          if (existing) {
+            existing.count++;
+            if (existing.examples.length < 2) {
+              existing.examples.push(warning);
+            }
+          } else {
+            categories.set(cat.label, {
+              label: cat.label,
+              icon: cat.icon,
+              count: 1,
+              examples: [warning],
+            });
+          }
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) {
+        uncategorized.push(warning);
+      }
+    }
+
+    // Add uncategorized warnings as "Other"
+    if (uncategorized.length > 0) {
+      categories.set('Other', {
+        label: 'Other',
+        icon: '📋',
+        count: uncategorized.length,
+        examples: uncategorized.slice(0, 2),
+      });
+    }
+
+    return Array.from(categories.values()).sort((a, b) => b.count - a.count);
+  }
+
+  // Display warning summary by category
+  warningSummary(warnings: string[], verbose: boolean = false): void {
+    if (warnings.length === 0) return;
+
+    const categories = this.categorizeWarnings(warnings);
+
+    console.log('');
+    console.log(`${COLORS.yellow}${COLORS.bright}  ⚠ Warning Summary (${warnings.length} total)${COLORS.reset}`);
+    console.log(`${COLORS.dim}  ${'─'.repeat(40)}${COLORS.reset}`);
+
+    for (const cat of categories) {
+      console.log(`   ${cat.icon} ${COLORS.yellow}${cat.count}${COLORS.reset} ${cat.label}`);
+      if (verbose && cat.examples.length > 0) {
+        for (const example of cat.examples) {
+          const truncated = example.length > 60 ? example.substring(0, 57) + '...' : example;
+          console.log(`      ${COLORS.dim}• ${truncated}${COLORS.reset}`);
+        }
+      }
+    }
+
+    if (!verbose && warnings.length > 3) {
+      console.log(`\n   ${COLORS.dim}Run with --verbose to see all warning details${COLORS.reset}`);
+    }
     console.log('');
   }
 

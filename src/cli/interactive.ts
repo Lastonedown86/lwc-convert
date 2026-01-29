@@ -14,6 +14,11 @@ import {
   getControllerTypeLabel
 } from '../utils/vf-controller-resolver';
 import { GradingOptions } from '../grading/types';
+import {
+  isFirstTimeSync,
+  markFirstTimeCompleteSync,
+  getWelcomeContent,
+} from '../utils/first-time';
 
 export interface TuiAnswers {
   action: 'convert' | 'grade';
@@ -196,16 +201,50 @@ function clearScreen(): void {
 }
 
 /**
+ * Display first-time welcome banner with workflows overview
+ */
+function showFirstTimeWelcome(): void {
+  const welcome = getWelcomeContent();
+
+  // Build the welcome message
+  const workflowLines = welcome.workflows.map(
+    (w) => `  ${w.icon} ${color.bold(w.name)}\n     ${color.dim(w.description)}`
+  ).join('\n\n');
+
+  const tipLines = welcome.tips.map(
+    (t) => `  ${color.dim('•')} ${t}`
+  ).join('\n');
+
+  p.note(
+    `${color.bold(color.cyan('Welcome to LWC Convert!'))}\n\n` +
+    `${color.dim('Three ways to get started:')}\n\n` +
+    `${workflowLines}\n\n` +
+    `${color.dim('─'.repeat(50))}\n\n` +
+    `${color.bold('Quick Tips:')}\n${tipLines}`,
+    '🎉 First Time Setup'
+  );
+
+  // Mark first-time complete
+  markFirstTimeCompleteSync();
+}
+
+/**
  * Display the welcome header
  */
 function showHeader(): void {
   clearScreen();
   p.intro(color.bgCyan(color.black(' 🔄 LWC Convert ')));
-  p.note(
-    'Convert Aura & Visualforce to Lightning Web Components\n' +
-    color.dim('Use arrow keys to navigate, Enter to select, Ctrl+C to cancel'),
-    'Welcome'
-  );
+
+  // Show first-time welcome if this is the user's first run
+  if (isFirstTimeSync()) {
+    showFirstTimeWelcome();
+  } else {
+    p.note(
+      'Convert Aura & Visualforce to Lightning Web Components\n' +
+      color.dim('Use arrow keys to navigate, Enter to select, Ctrl+C to cancel'),
+      'Welcome'
+    );
+  }
 }
 
 /**

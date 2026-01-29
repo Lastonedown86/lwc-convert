@@ -12,6 +12,7 @@ import { transformVfMarkup } from '../../transformers/vf-to-lwc/markup';
 import { generateVfScaffolding } from '../../generators/scaffolding';
 import { generateVfFullConversion } from '../../generators/full-conversion';
 import { resolveVfPath, resolveApexPath, formatSearchLocations } from '../../utils/path-resolver';
+import { formatSuggestions } from '../../utils/fuzzy-suggest';
 import { writePreviewFile, openPreview } from '../../utils/preview-generator';
 import { ensureProjectRoot } from '../../utils/project-detector.js';
 
@@ -32,8 +33,10 @@ export async function convertVf(
     const searchInfo = resolved.searchedLocations && resolved.searchedLocations.length > 0
       ? `\nSearched in:\n${formatSearchLocations(resolved.searchedLocations, process.cwd())}`
       : '';
+    const suggestions = resolved.suggestions ? formatSuggestions(resolved.suggestions) : '';
+    const helpText = resolved.contextualHelp ? `\n\nTips:\n${resolved.contextualHelp}` : '';
     throw new Error(
-      `Page not found: ${inputPath}${searchInfo}\n\nTip: You can provide just the page name (e.g., "ContactList") or a full path (e.g., "./force-app/main/default/pages/ContactList.page")`
+      `Page not found: ${inputPath}${suggestions}${searchInfo}${helpText}`
     );
   }
 
@@ -45,6 +48,9 @@ export async function convertVf(
     const resolvedController = await resolveApexPath(controllerPath);
     if (!resolvedController.found) {
       logger.warn(`Controller not found: ${controllerPath}`);
+      if (resolvedController.suggestions && resolvedController.suggestions.length > 0) {
+        console.log(formatSuggestions(resolvedController.suggestions));
+      }
       if (resolvedController.searchedLocations && resolvedController.searchedLocations.length > 0) {
         logger.subheader('Searched in:');
         console.log(formatSearchLocations(resolvedController.searchedLocations, process.cwd()));
@@ -186,15 +192,7 @@ export async function convertVf(
     ]);
 
     if (result.warnings.length > 0) {
-      if (options.verbose) {
-        logger.subheader('Warnings:');
-        for (const warning of result.warnings) {
-          logger.todo(warning);
-        }
-      } else {
-        logger.info('Run with --verbose to see all warnings');
-      }
-      logger.blank();
+      logger.warningSummary(result.warnings, options.verbose);
     }
 
     // Display important notes
