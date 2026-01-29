@@ -3,7 +3,7 @@
  * Uses Fuse.js for fuzzy matching to suggest similar component names
  */
 
-import Fuse from 'fuse.js';
+import Fuse, { IFuseOptions } from 'fuse.js';
 import * as path from 'path';
 import fs from 'fs-extra';
 import { findProjectRoot } from './project-detector.js';
@@ -15,7 +15,7 @@ export interface FuzzySuggestion {
 }
 
 // Fuse.js options for fuzzy matching
-const FUSE_OPTIONS: Fuse.IFuseOptions<{ name: string; path: string }> = {
+const FUSE_OPTIONS: IFuseOptions<{ name: string; path: string }> = {
   keys: ['name'],
   threshold: 0.4, // Allow fairly fuzzy matches
   includeScore: true,
