@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Box, Text } from 'ink';
 import { Screen } from '../components/layout/Screen.js';
 import { StepIndicator } from '../components/navigation/Breadcrumbs.js';
-import { RadioGroup } from '../components/forms/Checkbox.js';
+import { RadioGroup, Checkbox } from '../components/forms/Checkbox.js';
 import { TextInput } from '../components/forms/TextInput.js';
 import { Spinner } from '../components/feedback/Spinner.js';
 import { useStore } from '../store/index.js';
@@ -89,6 +89,12 @@ export function ConversionWizard(): React.ReactElement {
     } else if (wizard.currentStep === 1 && focusedField === 0) {
       // Move to next step since mode is already selected
       handleNext();
+    } else if (wizard.currentStep === 2 && focusedField === 1) {
+      // Toggle generatePreview checkbox
+      updateWizardState({ generatePreview: !wizard.generatePreview });
+    } else if (wizard.currentStep === 2 && focusedField === 2) {
+      // Toggle generateTests checkbox
+      updateWizardState({ generateTests: !wizard.generateTests });
     } else if (canGoNext()) {
       handleNext();
     }
@@ -117,6 +123,7 @@ export function ConversionWizard(): React.ReactElement {
           output: wizard.outputDir,
           full: wizard.conversionMode === 'full',
           preview: wizard.generatePreview,
+          generateTests: wizard.generateTests,
           dryRun: false,
           verbose: false,
           open: false,
@@ -548,6 +555,8 @@ function OptionsStep({
   generateTests,
   focusedField,
   onOutputDirChange,
+  onPreviewChange,
+  onTestsChange,
 }: OptionsStepProps): React.ReactElement {
   const preferences = useStore((state) => state.preferences);
   const theme = getTheme(preferences.theme);
@@ -569,9 +578,23 @@ function OptionsStep({
       </Box>
 
       <Box flexDirection="column" marginTop={1}>
-        <Text color={theme.textMuted}>
-          Additional options are configured in Settings
+        <Text color={theme.text} bold>
+          Generation Options {focusedField === 1 || focusedField === 2 ? <Text color={theme.accent}>(Enter to toggle)</Text> : ''}
         </Text>
+        <Box marginTop={1} flexDirection="column">
+          <Checkbox
+            label="Generate UI Preview"
+            checked={generatePreview}
+            onChange={onPreviewChange}
+            isFocused={focusedField === 1}
+          />
+          <Checkbox
+            label="Generate Jest Tests"
+            checked={generateTests}
+            onChange={onTestsChange}
+            isFocused={focusedField === 2}
+          />
+        </Box>
       </Box>
     </Box>
   );

@@ -133,23 +133,24 @@ export async function convertAura(
       await writeConversionNotes(outputDir, result.bundle.name, result.notes, options.dryRun);
     }
 
-    // Write Jest tests if generated
-    if (result.tests) {
+    // Write Jest tests if generated (respects generateTests option, defaults to true)
+    const shouldGenerateTests = options.generateTests !== false;
+    if (result.tests && shouldGenerateTests) {
       const testDir = path.join(outputDir, result.bundle.name, '__tests__');
       const testFilePath = path.join(testDir, result.tests.filename);
       const { writeFile } = await import('../../utils/file-io');
       await writeFile(testFilePath, result.tests.content, options.dryRun);
     }
-    
-    // Write behavior spec document
-    if (result.behaviorSpec) {
+
+    // Write behavior spec document (also gated on generateTests)
+    if (result.behaviorSpec && shouldGenerateTests) {
       const specFilePath = path.join(outputDir, result.bundle.name, `${result.bundle.name}-behavior-spec.md`);
       const { writeFile } = await import('../../utils/file-io');
       await writeFile(specFilePath, result.behaviorSpec, options.dryRun);
     }
 
     // Write test comparison files (before/after tests)
-    if (result.testComparison) {
+    if (result.testComparison && shouldGenerateTests) {
       const { writeFile } = await import('../../utils/file-io');
       const testDir = path.join(outputDir, result.bundle.name, '__tests__');
       
@@ -169,7 +170,7 @@ export async function convertAura(
     logger.divider();
 
     // Store conversion in session for learning
-    if (result.testComparison) {
+    if (result.testComparison && shouldGenerateTests) {
       const conversionRecord = await sessionStore.storeConversion(
         'aura',
         bundle.name,
@@ -184,9 +185,9 @@ export async function convertAura(
 
     // Calculate file count
     let totalFiles = writtenFiles.length + 1; // +1 for notes
-    if (result.tests) totalFiles++;
-    if (result.behaviorSpec) totalFiles++;
-    if (result.testComparison) totalFiles += 3; // before spec, after test, comparison report
+    if (result.tests && shouldGenerateTests) totalFiles++;
+    if (result.behaviorSpec && shouldGenerateTests) totalFiles++;
+    if (result.testComparison && shouldGenerateTests) totalFiles += 3; // before spec, after test, comparison report
 
     // Show success toast
     logger.successToast(
@@ -200,9 +201,15 @@ export async function convertAura(
 
     // Summary box with detailed info
     const sessionSummary = sessionStore.getSessionSummary();
+    const jestTestsValue = !shouldGenerateTests
+      ? 'Skipped'
+      : result.tests
+        ? `${result.bundle.name}.test.js`
+        : 'None';
     logger.summaryBox('Conversion Summary', [
       { label: 'Component', value: `${bundle.name} → ${result.bundle.name}`, type: 'success' },
       { label: 'Files created', value: `${totalFiles}`, type: 'info' },
+      { label: 'Jest Tests', value: jestTestsValue, type: shouldGenerateTests && result.tests ? 'success' : 'warn' },
       { label: 'Behaviors mapped', value: `${result.testComparison?.behaviorTests.length || 0}`, type: 'info' },
       { label: 'Warnings', value: `${result.warnings.length}`, type: result.warnings.length > 0 ? 'warn' : 'success' },
       { label: 'Output', value: path.join(outputDir, result.bundle.name), type: 'info' },
