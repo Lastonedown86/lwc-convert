@@ -1,6 +1,10 @@
 import React from 'react';
 import { render } from 'ink';
 import { App } from './App.js';
+import { checkForUpdates, formatUpdateMessage } from '../utils/update-checker.js';
+
+// Start update check early (non-blocking)
+const updateCheckPromise = checkForUpdates();
 
 export function startTui(): void {
   // Clear screen and enter alternate buffer before rendering
@@ -12,11 +16,23 @@ export function startTui(): void {
     exitOnCtrlC: false, // We handle quit ourselves with 'q'
   });
 
-  waitUntilExit().then(() => {
+  waitUntilExit().then(async () => {
     // Show cursor
     process.stdout.write('\x1b[?25h');
     // Exit alternate screen buffer
     process.stdout.write('\x1b[?1049l');
+
+    // Show update notification if a newer version is available
+    try {
+      const updateInfo = await updateCheckPromise;
+      if (updateInfo.hasUpdate && updateInfo.latestVersion) {
+        console.log('');
+        console.log(formatUpdateMessage(updateInfo.latestVersion, updateInfo.currentVersion));
+      }
+    } catch {
+      // Silently ignore update check errors
+    }
+
     process.exit(0);
   });
 }
