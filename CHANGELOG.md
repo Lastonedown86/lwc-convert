@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.1](https://github.com/Lastonedown86/lwc-convert/compare/v1.8.0...v1.8.1) (2026-03-04)
+
+
+### Bug Fixes
+
+* show Jest tests in full conversion output and wire generateTests setting ([#35](https://github.com/Lastonedown86/lwc-convert/issues/35)) ([ebb9326](https://github.com/Lastonedown86/lwc-convert/commit/ebb93260aa24bde5b6a84980babdbb9579a2976e))
+
 ## [1.8.0](https://github.com/Lastonedown86/lwc-convert/compare/v1.7.0...v1.8.0) (2026-01-29)
 
 
