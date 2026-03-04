@@ -44,6 +44,7 @@ export interface ConversionOptions {
   verbose: boolean;
   open: boolean;
   preview: boolean;
+  generateTests?: boolean;
   controller?: string;
 }
 
