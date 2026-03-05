@@ -170,10 +170,30 @@ export async function convertVf(
       await writeConversionNotes(outputDir, result.bundle.name, result.notes, options.dryRun);
     }
 
+    // Write Jest tests if generated (respects generateTests option, defaults to true)
+    const shouldGenerateTests = options.generateTests !== false;
+    if (result.tests && shouldGenerateTests) {
+      const testDir = path.join(outputDir, result.bundle.name, '__tests__');
+      const testFilePath = path.join(testDir, result.tests.filename);
+      const { writeFile } = await import('../../utils/file-io');
+      await writeFile(testFilePath, result.tests.content, options.dryRun);
+    }
+
+    // Write behavior spec document
+    if (result.behaviorSpec && shouldGenerateTests) {
+      const specFilePath = path.join(outputDir, result.bundle.name, `${result.bundle.name}-behavior-spec.md`);
+      const { writeFile } = await import('../../utils/file-io');
+      await writeFile(specFilePath, result.behaviorSpec, options.dryRun);
+    }
+
     logger.divider();
 
+    // Calculate file count
+    let totalFiles = writtenFiles.length + 1; // +1 for notes
+    if (result.tests && shouldGenerateTests) totalFiles++;
+    if (result.behaviorSpec && shouldGenerateTests) totalFiles++;
+
     // Show success toast
-    const totalFiles = writtenFiles.length + 1;
     logger.successToast(
       'Conversion Complete',
       [
@@ -184,9 +204,16 @@ export async function convertVf(
     );
 
     // Summary box with detailed info
+    const jestTestsValue = !shouldGenerateTests
+      ? 'Skipped'
+      : result.tests
+        ? `${result.bundle.name}.test.js`
+        : 'None';
     logger.summaryBox('Conversion Summary', [
       { label: 'Page', value: `${vfPage.name} → ${result.bundle.name}`, type: 'success' },
       { label: 'Files created', value: `${totalFiles}`, type: 'info' },
+      { label: 'Jest Tests', value: jestTestsValue, type: shouldGenerateTests && result.tests ? 'success' : 'warn' },
+      { label: 'Behaviors mapped', value: `${result.tests?.behaviorSpecs.length || 0}`, type: 'info' },
       { label: 'Warnings', value: `${result.warnings.length}`, type: result.warnings.length > 0 ? 'warn' : 'success' },
       { label: 'Output', value: path.join(outputDir, result.bundle.name), type: 'info' },
     ]);
@@ -205,6 +232,7 @@ export async function convertVf(
       `Review generated files in ${result.bundle.name}/`,
       'Check conversion-notes.md for manual action items',
       'Verify Apex @AuraEnabled methods are configured',
+      'Run Jest tests: npm test -- --findRelatedTests',
       'Test in a scratch org before deploying',
     ]);
 

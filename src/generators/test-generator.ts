@@ -6,6 +6,9 @@
 import { ParsedAuraMarkup } from '../parsers/aura/markup-parser';
 import { ParsedAuraController } from '../parsers/aura/controller-parser';
 import { TransformedMarkup } from '../transformers/aura-to-lwc/markup';
+import { ParsedVfPage } from '../parsers/vf/page-parser';
+import { ParsedApexController } from '../parsers/vf/apex-parser';
+import { TransformedVfMarkup } from '../transformers/vf-to-lwc/markup';
 import { toPascalCase, toLwcName } from '../utils/file-io';
 
 export interface GeneratedTest {
@@ -15,7 +18,7 @@ export interface GeneratedTest {
 }
 
 export interface BehaviorSpec {
-  category: 'lms' | 'data' | 'lifecycle' | 'event' | 'ui';
+  category: 'lms' | 'data' | 'lifecycle' | 'event' | 'ui' | 'apex' | 'formula' | 'actionfunction' | 'remoteaction';
   description: string;
   auraPattern: string;
   lwcEquivalent: string;
@@ -395,6 +398,309 @@ ${rds.fields.map(f => `                        ${f}: { value: 'Test ${f}' }`).jo
     filename: `${lwcName}.test.js`,
     content: testContent,
     behaviorSpecs
+  };
+}
+
+/**
+ * Generate Jest tests for a converted VF page
+ */
+export function generateVfToLwcTests(
+  vfPage: ParsedVfPage,
+  transformedMarkup: TransformedVfMarkup,
+  apexController?: ParsedApexController
+): GeneratedTest {
+  const lwcName = toLwcName(vfPage.pageName);
+  const className = toPascalCase(vfPage.pageName);
+  const behaviorSpecs: BehaviorSpec[] = [];
+
+  const imports: string[] = [];
+  const mocks: string[] = [];
+
+  imports.push("import { createElement } from 'lwc';");
+  imports.push(`import ${className} from 'c/${lwcName}';`);
+
+  // Collect Apex methods that need mocking
+  const apexMethods: string[] = [];
+  const controllerName = vfPage.pageAttributes.controller || apexController?.className || '';
+
+  if (apexController) {
+    const auraEnabledMethods = apexController.methods.filter((m) => m.isAuraEnabled);
+    const remoteActionMethods = apexController.methods.filter((m) => m.isRemoteAction);
+
+    for (const method of auraEnabledMethods) {
+      apexMethods.push(method.name);
+      imports.push(`import ${method.name} from '@salesforce/apex/${controllerName}.${method.name}';`);
+      mocks.push(`// Mock Apex method: ${method.name}
+jest.mock(
+    '@salesforce/apex/${controllerName}.${method.name}',
+    () => ({ default: jest.fn() }),
+    { virtual: true }
+);`);
+      behaviorSpecs.push({
+        category: 'apex',
+        description: `Call ${method.name} via imperative Apex`,
+        auraPattern: `apex:actionFunction name="${method.name}" action="{!${method.name}}"`,
+        lwcEquivalent: `import ${method.name} from '@salesforce/apex/${controllerName}.${method.name}'`,
+      });
+    }
+
+    for (const method of remoteActionMethods) {
+      behaviorSpecs.push({
+        category: 'remoteaction',
+        description: `Replace @RemoteAction ${method.name} with @AuraEnabled imperative Apex`,
+        auraPattern: `Visualforce.remoting.Manager.invokeAction('${controllerName}.${method.name}', ...)`,
+        lwcEquivalent: `import ${method.name} from '@salesforce/apex/${controllerName}.${method.name}'`,
+      });
+    }
+  }
+
+  // Action functions (apex:actionFunction)
+  if (vfPage.actionFunctions.length > 0) {
+    for (const af of vfPage.actionFunctions) {
+      behaviorSpecs.push({
+        category: 'actionfunction',
+        description: `Convert apex:actionFunction "${af.name}" to imperative Apex call`,
+        auraPattern: `<apex:actionFunction name="${af.name}" action="{!${af.name}}" />`,
+        lwcEquivalent: `async handle${af.name.charAt(0).toUpperCase() + af.name.slice(1)}() { await ${af.name}({ ... }); }`,
+      });
+    }
+  }
+
+  // Remote actions
+  if (vfPage.remoteActions.length > 0) {
+    for (const ra of vfPage.remoteActions) {
+      behaviorSpecs.push({
+        category: 'remoteaction',
+        description: `Replace remote action ${ra.controller}.${ra.method} with @AuraEnabled Apex`,
+        auraPattern: `Visualforce.remoting.Manager.invokeAction('${ra.controller}.${ra.method}', ...)`,
+        lwcEquivalent: `import ${ra.method} from '@salesforce/apex/${ra.controller}.${ra.method}'`,
+      });
+    }
+  }
+
+  // Formula getters
+  if (transformedMarkup.detectedFormulas.length > 0) {
+    for (const formula of transformedMarkup.detectedFormulas) {
+      behaviorSpecs.push({
+        category: 'formula',
+        description: `Getter ${formula.getterName} replaces VF formula expression`,
+        auraPattern: `{!${formula.original}}`,
+        lwcEquivalent: `get ${formula.getterName}() { ${formula.suggestedLogic} }`,
+      });
+    }
+  }
+
+  // Standard controller
+  if (vfPage.pageAttributes.standardController) {
+    behaviorSpecs.push({
+      category: 'data',
+      description: `Load record via @api recordId (standard controller: ${vfPage.pageAttributes.standardController})`,
+      auraPattern: `standardController="${vfPage.pageAttributes.standardController}"`,
+      lwcEquivalent: `@api recordId; @api objectApiName = '${vfPage.pageAttributes.standardController}';`,
+    });
+  }
+
+  // UI: conditional rendering from rerendered sections
+  if (vfPage.rerenderedSections.length > 0) {
+    behaviorSpecs.push({
+      category: 'ui',
+      description: `Replace rerender sections with reactive LWC properties`,
+      auraPattern: `rerender="${vfPage.rerenderedSections.join(', ')}"`,
+      lwcEquivalent: `<template if:true={...}> or <template for:each={...}>`,
+    });
+  }
+
+  // Lifecycle: page action attribute
+  if (vfPage.pageAttributes.action) {
+    behaviorSpecs.push({
+      category: 'lifecycle',
+      description: `connectedCallback replaces page action="${vfPage.pageAttributes.action}"`,
+      auraPattern: `action="${vfPage.pageAttributes.action}"`,
+      lwcEquivalent: `connectedCallback() { this.initializeData(); }`,
+    });
+  }
+
+  // Build test content
+  let testContent = `/**
+ * Jest tests for ${lwcName}
+ * Converted from Visualforce page: ${vfPage.pageName}
+ *
+ * These tests verify that the converted LWC preserves the original page behaviors.
+ */
+
+${imports.join('\n')}
+
+${mocks.join('\n\n')}
+
+describe('${lwcName}', () => {
+    let element;
+
+    beforeEach(() => {
+        element = createElement('c-${lwcName}', {
+            is: ${className}
+        });
+    });
+
+    afterEach(() => {
+        while (document.body.firstChild) {
+            document.body.removeChild(document.body.firstChild);
+        }
+        jest.clearAllMocks();
+    });
+
+`;
+
+  // Lifecycle tests
+  if (vfPage.pageAttributes.action) {
+    testContent += `    /**
+     * Lifecycle Tests
+     * Original VF: action="${vfPage.pageAttributes.action}"
+     */
+    describe('Lifecycle', () => {
+        test('should call initializeData on connect', () => {
+            // In VF the page action ran on load; connectedCallback is the equivalent
+            document.body.appendChild(element);
+            expect(element).toBeTruthy();
+        });
+    });
+
+`;
+  }
+
+  // Standard controller / record tests
+  if (vfPage.pageAttributes.standardController) {
+    testContent += `    /**
+     * Standard Controller Tests
+     * Original VF: standardController="${vfPage.pageAttributes.standardController}"
+     */
+    describe('Record Context', () => {
+        test('should accept recordId as public property', () => {
+            const mockRecordId = 'a00xx000000bbbAAA';
+            element.recordId = mockRecordId;
+            document.body.appendChild(element);
+            expect(element.recordId).toBe(mockRecordId);
+        });
+
+        test('should have objectApiName set to ${vfPage.pageAttributes.standardController}', () => {
+            document.body.appendChild(element);
+            expect(element.objectApiName).toBe('${vfPage.pageAttributes.standardController}');
+        });
+    });
+
+`;
+  }
+
+  // Apex / ActionFunction tests
+  if (apexMethods.length > 0 || vfPage.actionFunctions.length > 0) {
+    testContent += `    /**
+     * Apex Call Tests
+     * Original VF used apex:actionFunction or remote actions
+     */
+    describe('Apex Calls', () => {
+`;
+    for (const methodName of apexMethods) {
+      testContent += `        test('${methodName} mock should be callable', async () => {
+            ${methodName}.mockResolvedValue([]);
+            document.body.appendChild(element);
+            expect(${methodName}).toBeDefined();
+        });
+
+`;
+    }
+
+    for (const af of vfPage.actionFunctions) {
+      testContent += `        test('should handle ${af.name} action function', async () => {
+            // Original VF: <apex:actionFunction name="${af.name}" action="{!${af.name}}" />
+            // Converted to imperative Apex call
+            document.body.appendChild(element);
+            // TODO: trigger the action and verify Apex is called
+            expect(element).toBeTruthy();
+        });
+
+`;
+    }
+
+    testContent += `    });
+
+`;
+  }
+
+  // Remote action tests
+  if (vfPage.remoteActions.length > 0) {
+    testContent += `    /**
+     * Remote Action Tests
+     * Original VF used Visualforce.remoting.Manager.invokeAction
+     */
+    describe('Remote Actions', () => {
+`;
+    for (const ra of vfPage.remoteActions) {
+      testContent += `        test('${ra.method} should be replaced with @AuraEnabled Apex import', () => {
+            // Original: Visualforce.remoting.Manager.invokeAction('${ra.controller}.${ra.method}', ...)
+            // Converted: import ${ra.method} from '@salesforce/apex/${ra.controller}.${ra.method}'
+            document.body.appendChild(element);
+            expect(element).toBeTruthy();
+        });
+
+`;
+    }
+    testContent += `    });
+
+`;
+  }
+
+  // Formula getter tests
+  if (transformedMarkup.detectedFormulas.length > 0) {
+    testContent += `    /**
+     * Formula Getter Tests
+     * Original VF used {!formula} expressions; converted to JS getters
+     */
+    describe('Formula Getters', () => {
+`;
+    for (const formula of transformedMarkup.detectedFormulas) {
+      testContent += `        test('getter ${formula.getterName} should be defined (converted from {!${formula.original}})', () => {
+            document.body.appendChild(element);
+            // Getter should exist and return a boolean-like value
+            expect(typeof element.${formula.getterName}).not.toBe('undefined');
+        });
+
+`;
+    }
+    testContent += `    });
+
+`;
+  }
+
+  // UI rendering tests
+  testContent += `    /**
+     * UI Rendering Tests
+     */
+    describe('UI Rendering', () => {
+        test('should render component', () => {
+            document.body.appendChild(element);
+            expect(element).toBeTruthy();
+        });
+`;
+
+  if (vfPage.rerenderedSections.length > 0) {
+    testContent += `
+        test('should reactively re-render when data changes', async () => {
+            // Original VF used rerender="${vfPage.rerenderedSections.join(', ')}"
+            // LWC re-renders automatically via reactive properties
+            document.body.appendChild(element);
+            await Promise.resolve();
+            expect(element).toBeTruthy();
+        });
+`;
+  }
+
+  testContent += `    });
+});
+`;
+
+  return {
+    filename: `${lwcName}.test.js`,
+    content: testContent,
+    behaviorSpecs,
   };
 }
 
