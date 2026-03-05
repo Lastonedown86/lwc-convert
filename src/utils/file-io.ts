@@ -249,13 +249,30 @@ export async function writeFile(
 
 /**
  * Convert a component name to LWC naming convention (camelCase to kebab-case)
+ * Also validates the result conforms to LWC naming rules.
  */
 export function toLwcName(name: string): string {
   // Convert PascalCase or camelCase to kebab-case
-  return name
+  let result = name
     .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
     .replace(/([A-Z])([A-Z][a-z])/g, '$1-$2')
     .toLowerCase();
+
+  // Sanitize: remove invalid characters, collapse consecutive hyphens
+  result = result.replace(/[^a-z0-9-]/g, '-');
+  result = result.replace(/-{2,}/g, '-');
+  // Must start with a lowercase letter
+  result = result.replace(/^[^a-z]+/, '');
+  // Must not end with a hyphen
+  result = result.replace(/-+$/, '');
+
+  // Fallback if result is empty after sanitization
+  if (!result) {
+    result = 'component';
+    logger.warn(`Component name "${name}" could not be converted to a valid LWC name. Using "${result}" as fallback.`);
+  }
+
+  return result;
 }
 
 /**

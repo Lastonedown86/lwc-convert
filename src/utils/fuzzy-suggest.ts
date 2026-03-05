@@ -7,6 +7,12 @@ import Fuse, { IFuseOptions } from 'fuse.js';
 import * as path from 'path';
 import fs from 'fs-extra';
 import { findProjectRoot } from './project-detector.js';
+import {
+  AURA_SEARCH_PATHS,
+  VF_PAGE_SEARCH_PATHS,
+  VF_COMPONENT_SEARCH_PATHS,
+  APEX_SEARCH_PATHS,
+} from './constants.js';
 
 export interface FuzzySuggestion {
   name: string;
@@ -26,14 +32,7 @@ const FUSE_OPTIONS: IFuseOptions<{ name: string; path: string }> = {
  * Find similar Aura component names
  */
 export async function suggestAuraComponents(input: string, maxResults: number = 3): Promise<FuzzySuggestion[]> {
-  const searchPaths = [
-    'force-app/main/default/aura',
-    'src/aura',
-    'aura',
-    'force-app/main/aura',
-  ];
-
-  const components = await scanDirectories(searchPaths, '.cmp');
+  const components = await scanDirectories(AURA_SEARCH_PATHS, '.cmp');
   return fuzzyMatch(input, components, maxResults);
 }
 
@@ -41,16 +40,7 @@ export async function suggestAuraComponents(input: string, maxResults: number = 
  * Find similar Visualforce page/component names
  */
 export async function suggestVfPages(input: string, maxResults: number = 3): Promise<FuzzySuggestion[]> {
-  const searchPaths = [
-    'force-app/main/default/pages',
-    'force-app/main/default/components',
-    'src/pages',
-    'src/components',
-    'pages',
-    'components',
-  ];
-
-  const pages = await scanDirectories(searchPaths, '.page', '.component');
+  const pages = await scanDirectories([...VF_PAGE_SEARCH_PATHS, ...VF_COMPONENT_SEARCH_PATHS], '.page', '.component');
   return fuzzyMatch(input, pages, maxResults);
 }
 
@@ -58,14 +48,7 @@ export async function suggestVfPages(input: string, maxResults: number = 3): Pro
  * Find similar Apex controller names
  */
 export async function suggestApexControllers(input: string, maxResults: number = 3): Promise<FuzzySuggestion[]> {
-  const searchPaths = [
-    'force-app/main/default/classes',
-    'src/classes',
-    'classes',
-    'force-app/main/classes',
-  ];
-
-  const controllers = await scanDirectories(searchPaths, '.cls');
+  const controllers = await scanDirectories(APEX_SEARCH_PATHS, '.cls');
   return fuzzyMatch(input, controllers, maxResults);
 }
 
@@ -113,7 +96,7 @@ async function scanDirectories(
           }
         }
       } catch {
-        // Ignore errors
+        // Errors here are expected (directory not found, etc.)
       }
     }
   }

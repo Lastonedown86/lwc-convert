@@ -6,6 +6,7 @@
 import * as path from 'path';
 import fs from 'fs-extra';
 import { findProjectRoot } from './project-detector.js';
+import { logger } from './logger.js';
 import {
   suggestAuraComponents,
   suggestVfPages,
@@ -14,38 +15,12 @@ import {
   getContextualHelp,
   FuzzySuggestion,
 } from './fuzzy-suggest.js';
-
-// Common Aura component locations in Salesforce projects
-const AURA_SEARCH_PATHS = [
-  'force-app/main/default/aura',
-  'src/aura',
-  'aura',
-  'force-app/main/aura',
-];
-
-// Common Visualforce page locations in Salesforce projects
-const VF_PAGE_SEARCH_PATHS = [
-  'force-app/main/default/pages',
-  'src/pages',
-  'pages',
-  'force-app/main/pages',
-];
-
-// Common Visualforce component locations in Salesforce projects
-const VF_COMPONENT_SEARCH_PATHS = [
-  'force-app/main/default/components',
-  'src/components',
-  'components',
-  'force-app/main/components',
-];
-
-// Common Apex controller locations
-const APEX_SEARCH_PATHS = [
-  'force-app/main/default/classes',
-  'src/classes',
-  'classes',
-  'force-app/main/classes',
-];
+import {
+  AURA_SEARCH_PATHS,
+  VF_PAGE_SEARCH_PATHS,
+  VF_COMPONENT_SEARCH_PATHS,
+  APEX_SEARCH_PATHS,
+} from './constants.js';
 
 export interface ResolvedPath {
   found: boolean;
@@ -271,12 +246,17 @@ export async function resolveApexPath(input: string): Promise<ResolvedPath> {
 
 /**
  * Recursively search for a component in a directory
+ * @param maxDepth Maximum directory depth to search (default 5)
  */
 async function searchForComponent(
   baseDir: string,
   componentName: string,
-  extension: string
+  extension: string,
+  currentDepth: number = 0,
+  maxDepth: number = 5
 ): Promise<string | null> {
+  if (currentDepth >= maxDepth) return null;
+
   try {
     const entries = await fs.readdir(baseDir, { withFileTypes: true });
 
@@ -290,19 +270,21 @@ async function searchForComponent(
           }
         }
 
-        // Search subdirectories (but not too deep)
+        // Search subdirectories with depth limit
         const subResult = await searchForComponent(
           path.join(baseDir, entry.name),
           componentName,
-          extension
+          extension,
+          currentDepth + 1,
+          maxDepth
         );
         if (subResult) {
           return subResult;
         }
       }
     }
-  } catch {
-    // Ignore errors (permission issues, etc.)
+  } catch (error: any) {
+    logger.debug(`Error searching ${baseDir}: ${error.message}`);
   }
 
   return null;

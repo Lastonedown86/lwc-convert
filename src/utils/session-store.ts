@@ -77,12 +77,17 @@ interface ActiveSessionInfo {
   lastActivityAt: string;
 }
 
+// Maximum number of patterns to keep in the library (LRU eviction)
+const MAX_PATTERN_LIBRARY_SIZE = 1000;
+
 class SessionStore {
   private sessionId: string = '';
   private sessionDir: string = '';
   private conversions: ConversionRecord[] = [];
+  private conversionIndex: Map<string, ConversionRecord> = new Map();
   private patternLibrary: Map<string, PatternRecord> = new Map();
   private initialized: boolean = false;
+  private initPromise: Promise<void> | null = null;
   private startedAt: Date = new Date();
 
   constructor() {
@@ -152,7 +157,8 @@ class SessionStore {
           const record = JSON.parse(content);
           record.timestamp = new Date(record.timestamp);
           this.conversions.push(record);
-          
+          this.conversionIndex.set(record.id, record);
+
           // Rebuild pattern library
           for (const pattern of record.patterns) {
             this.updatePatternLibrary([pattern]);
@@ -217,24 +223,32 @@ class SessionStore {
   async init(): Promise<void> {
     if (this.initialized) return;
 
-    try {
-      // Try to load an existing session first
-      const loaded = await this.tryLoadExistingSession();
-      
-      if (!loaded) {
-        // Create a new session
-        await this.createNewSession();
-      }
-      
-      // Update activity timestamp
-      await this.updateActiveSessionFile();
+    // Prevent concurrent init calls by reusing the same promise
+    if (this.initPromise) return this.initPromise;
 
-      this.initialized = true;
-      logger.debug(`Session store initialized: ${this.sessionDir}`);
-    } catch (error: any) {
-      logger.debug(`Failed to initialize session store: ${error.message}`);
-      // Continue without session store - it's not critical
-    }
+    this.initPromise = (async () => {
+      try {
+        // Try to load an existing session first
+        const loaded = await this.tryLoadExistingSession();
+
+        if (!loaded) {
+          // Create a new session
+          await this.createNewSession();
+        }
+
+        // Update activity timestamp
+        await this.updateActiveSessionFile();
+
+        this.initialized = true;
+        logger.debug(`Session store initialized: ${this.sessionDir}`);
+      } catch (error: any) {
+        logger.debug(`Failed to initialize session store: ${error.message}`);
+        this.initPromise = null; // Allow retry on failure
+        // Continue without session store - it's not critical
+      }
+    })();
+
+    return this.initPromise;
   }
 
   /**
@@ -287,6 +301,7 @@ class SessionStore {
     };
 
     this.conversions.push(record);
+    this.conversionIndex.set(record.id, record);
 
     // Update pattern library
     this.updatePatternLibrary(record.patterns);
@@ -363,7 +378,17 @@ class SessionStore {
         existing.frequency++;
         // Keep running average of success rate
         existing.successRate = (existing.successRate * (existing.frequency - 1) + pattern.successRate) / existing.frequency;
+        // Move to end (most recently used) for LRU behavior
+        this.patternLibrary.delete(key);
+        this.patternLibrary.set(key, existing);
       } else {
+        // Evict least recently used entries if at capacity
+        if (this.patternLibrary.size >= MAX_PATTERN_LIBRARY_SIZE) {
+          const firstKey = this.patternLibrary.keys().next().value;
+          if (firstKey !== undefined) {
+            this.patternLibrary.delete(firstKey);
+          }
+        }
         this.patternLibrary.set(key, { ...pattern });
       }
     }
@@ -411,14 +436,14 @@ class SessionStore {
    * Get conversion by ID
    */
   getConversion(id: string): ConversionRecord | undefined {
-    return this.conversions.find(c => c.id === id);
+    return this.conversionIndex.get(id);
   }
 
   /**
    * Update test results for a conversion
    */
   async updateTestResults(conversionId: string, results: TestResultSummary): Promise<void> {
-    const conversion = this.conversions.find(c => c.id === conversionId);
+    const conversion = this.conversionIndex.get(conversionId);
     if (!conversion) return;
 
     conversion.testResults = results;
@@ -576,8 +601,10 @@ All session data is stored in:
       }
       // Reset state
       this.conversions = [];
+      this.conversionIndex.clear();
       this.patternLibrary.clear();
       this.initialized = false;
+      this.initPromise = null;
       logger.debug(`Cleaned up session: ${this.sessionId}`);
     } catch (error: any) {
       logger.debug(`Failed to cleanup session: ${error.message}`);
