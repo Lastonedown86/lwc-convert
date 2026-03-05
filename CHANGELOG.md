@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.2](https://github.com/Lastonedown86/lwc-convert/compare/v1.8.1...v1.8.2) (2026-03-05)
+
+
+### Bug Fixes
+
+* address 21 bugs, security issues, and enhancements across codebase ([#37](https://github.com/Lastonedown86/lwc-convert/issues/37)) ([37e3093](https://github.com/Lastonedown86/lwc-convert/commit/37e3093101dc4b9935054c12c3fbb656be189bd1))
+
 ## [1.8.1](https://github.com/Lastonedown86/lwc-convert/compare/v1.8.0...v1.8.1) (2026-03-04)
 
 
