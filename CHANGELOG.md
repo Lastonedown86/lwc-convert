@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.0](https://github.com/Lastonedown86/lwc-convert/compare/v1.8.2...v1.9.0) (2026-03-05)
+
+
+### Features
+
+* add npm update alert notification ([#39](https://github.com/Lastonedown86/lwc-convert/issues/39)) ([299486f](https://github.com/Lastonedown86/lwc-convert/commit/299486f5f9a4eaae6ae5f3e0ef8c76c3fd2cef33))
+
 ## [1.8.2](https://github.com/Lastonedown86/lwc-convert/compare/v1.8.1...v1.8.2) (2026-03-05)
 
 
