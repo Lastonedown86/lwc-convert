@@ -13,7 +13,7 @@ import { transformAuraController } from '../transformers/aura-to-lwc/controller'
 import { transformAuraEvent, transformEventHandler } from '../transformers/aura-to-lwc/events';
 import { transformVfMarkup } from '../transformers/vf-to-lwc/markup';
 import { generateDataAccessLayer } from '../transformers/vf-to-lwc/data-binding';
-import { generateAuraToLwcTests, generateBehaviorSpecDocument, GeneratedTest } from './test-generator';
+import { generateAuraToLwcTests, generateBehaviorSpecDocument, generateVfToLwcTests, GeneratedTest } from './test-generator';
 import { LwcBundle, toPascalCase, toLwcName } from '../utils/file-io';
 import { logger } from '../utils/logger';
 import { DEFAULT_API_VERSION } from '../cli/options';
@@ -667,6 +667,10 @@ export function generateVfFullConversion(
   logger.debug(`${reviewItems.length} items need review`);
   logger.debug(`Confidence: ${formatConfidenceScore(confidence)}`);
 
+  // Generate tests and behavior spec
+  const tests = generateVfToLwcTests(vfPage, transformedMarkup, apexController);
+  const behaviorSpec = generateBehaviorSpecDocument(vfPage.pageName, tests.behaviorSpecs);
+
   return {
     bundle: {
       name: lwcName,
@@ -678,5 +682,7 @@ export function generateVfFullConversion(
     warnings: reviewItems.filter((r) => r.type === 'warning').map((r) => r.message),
     reviewItems,
     confidence,
+    tests,
+    behaviorSpec,
   };
 }

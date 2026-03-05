@@ -13,7 +13,7 @@ import { TransformedMarkup } from '../transformers/aura-to-lwc/markup';
 // import { TransformedController, LwcProperty, LwcMethod } from '../transformers/aura-to-lwc/controller';
 import { TransformedVfMarkup } from '../transformers/vf-to-lwc/markup';
 import { generateDataAccessLayer } from '../transformers/vf-to-lwc/data-binding';
-import { generateAuraToLwcTests, generateBehaviorSpecDocument, GeneratedTest } from './test-generator';
+import { generateAuraToLwcTests, generateBehaviorSpecDocument, generateVfToLwcTests, GeneratedTest } from './test-generator';
 import { generateTestComparison, TestComparisonResult } from './test-comparison';
 import { LwcBundle, toPascalCase, toLwcName } from '../utils/file-io';
 import { logger } from '../utils/logger';
@@ -868,7 +868,12 @@ export function generateVfScaffolding(
     notes.push(`WARNING: ${warning}`);
   }
 
+  // Generate tests and behavior spec
+  const tests = generateVfToLwcTests(vfPage, transformedMarkup, apexController);
+  const behaviorSpec = generateBehaviorSpecDocument(vfPage.pageName, tests.behaviorSpecs);
+
   logger.debug(`Generated VF scaffolding for ${lwcName}`);
+  logger.debug(`Generated ${tests.behaviorSpecs.length} VF behavior specs`);
 
   return {
     bundle: {
@@ -879,5 +884,7 @@ export function generateVfScaffolding(
     },
     notes,
     warnings: allWarnings,
+    tests,
+    behaviorSpec,
   };
 }
