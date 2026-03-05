@@ -37,6 +37,8 @@ function getPackageVersion(): string {
   }
 }
 
+export const DEFAULT_API_VERSION = '62.0';
+
 export interface ConversionOptions {
   output: string;
   full: boolean;
@@ -46,6 +48,7 @@ export interface ConversionOptions {
   preview: boolean;
   generateTests?: boolean;
   controller?: string;
+  apiVersion?: string;
 }
 
 // Type alias for Aura-specific options (can be extended later)

@@ -89,12 +89,26 @@ function convertFunctionBody(
   );
 
   // Replace component.set("v.x", value) with this.x = value
-  converted = converted.replace(
-    /(?:component|cmp)\.set\s*\(\s*["']v\.(\w+)["']\s*,\s*/g,
-    'this.$1 = '
-  );
-  // Clean up the closing paren from set
-  converted = converted.replace(/this\.(\w+)\s*=\s*([^;]+)\s*\)/g, 'this.$1 = $2');
+  // Handle nested parentheses by finding the matching closing paren
+  const setPattern = /(?:component|cmp)\.set\s*\(\s*["']v\.(\w+)["']\s*,\s*/g;
+  let setMatch;
+  while ((setMatch = setPattern.exec(converted)) !== null) {
+    const propName = setMatch[1];
+    const valueStart = setMatch.index + setMatch[0].length;
+    // Find matching closing paren, tracking nesting depth
+    let depth = 1;
+    let i = valueStart;
+    while (i < converted.length && depth > 0) {
+      if (converted[i] === '(') depth++;
+      else if (converted[i] === ')') depth--;
+      i++;
+    }
+    const value = converted.substring(valueStart, i - 1).trim();
+    const replacement = `this.${propName} = ${value}`;
+    converted = converted.substring(0, setMatch.index) + replacement + converted.substring(i);
+    // Reset regex since we mutated the string
+    setPattern.lastIndex = setMatch.index + replacement.length;
+  }
 
   // Replace helper.methodName(component, ...) with this.methodName(...)
   if (allHelperFunctions) {
@@ -110,10 +124,22 @@ function convertFunctionBody(
   // Handle $A.enqueueAction patterns - mark for manual conversion
   if (converted.includes('$A.enqueueAction')) {
     warnings.push('Server action ($A.enqueueAction) found - convert to imperative Apex call');
-    converted = converted.replace(
-      /\$A\.enqueueAction\s*\([^)]+\)/g,
-      '/* TODO: Convert to imperative Apex call */'
-    );
+    // Use balanced paren matching since the argument often contains nested function calls
+    const enqueuePattern = /\$A\.enqueueAction\s*\(/g;
+    let enqueueMatch;
+    while ((enqueueMatch = enqueuePattern.exec(converted)) !== null) {
+      const callStart = enqueueMatch.index;
+      let depth = 1;
+      let j = callStart + enqueueMatch[0].length;
+      while (j < converted.length && depth > 0) {
+        if (converted[j] === '(') depth++;
+        else if (converted[j] === ')') depth--;
+        j++;
+      }
+      const replacement = '/* TODO: Convert to imperative Apex call */';
+      converted = converted.substring(0, callStart) + replacement + converted.substring(j);
+      enqueuePattern.lastIndex = callStart + replacement.length;
+    }
   }
 
   // Handle component.get("c.methodName") - server action setup

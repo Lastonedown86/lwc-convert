@@ -9,6 +9,8 @@ import { logger } from '../utils/logger';
 export class Grader {
     private auraGrader: AuraGrader;
     private vfGrader: VfGrader;
+    /** Cache of grading results keyed by resolved file path */
+    private gradeCache: Map<string, ComponentGrade> = new Map();
 
     constructor() {
         this.auraGrader = new AuraGrader();
@@ -66,8 +68,8 @@ export class Grader {
                         }
                     }
                 }
-            } catch {
-                // Ignore permission errors
+            } catch (error: any) {
+                logger.debug(`Error scanning ${dirPath}: ${error.message}`);
             }
         };
 
@@ -89,16 +91,33 @@ export class Grader {
             // Project or folder scope
             const searchPaths = options.targetPath ? [options.targetPath] : await this.getStandardPaths(options.type);
 
+            // Collect all files first so we can show progress
+            const allFiles: string[] = [];
             for (const searchPath of searchPaths) {
                 const found = await this.scanDirectory(searchPath, options.type);
-                for (const file of found) {
-                    try {
-                        const grade = await this.gradeSingle(file, options.type === 'both' ? this.detectType(file) : options.type);
-                        if (grade) results.push(grade);
-                    } catch (err: any) {
-                        logger.error(`Failed to grade ${file}: ${err.message}`);
+                allFiles.push(...found);
+            }
+
+            for (let idx = 0; idx < allFiles.length; idx++) {
+                const file = allFiles[idx];
+                if (allFiles.length > 5) {
+                    logger.debug(`Grading ${idx + 1}/${allFiles.length}: ${path.basename(file)}`);
+                    // Show progress on stdout for large batches
+                    if ((idx + 1) % 10 === 0 || idx === allFiles.length - 1) {
+                        process.stdout.write(`\r  Grading components... ${idx + 1}/${allFiles.length}`);
                     }
                 }
+                try {
+                    const grade = await this.gradeSingle(file, options.type === 'both' ? this.detectType(file) : options.type);
+                    if (grade) results.push(grade);
+                } catch (err: any) {
+                    logger.error(`Failed to grade ${file}: ${err.message}`);
+                }
+            }
+
+            // Clear the progress line
+            if (allFiles.length > 5) {
+                process.stdout.write('\r' + ' '.repeat(60) + '\r');
             }
         }
 
@@ -106,17 +125,28 @@ export class Grader {
     }
 
     private async gradeSingle(filePath: string, type: 'aura' | 'vf' | 'both'): Promise<ComponentGrade | null> {
+        const resolvedPath = path.resolve(filePath);
+
+        // Check cache first
+        const cached = this.gradeCache.get(resolvedPath);
+        if (cached) return cached;
+
         const resolvedType = type === 'both' ? this.detectType(filePath) : type;
 
+        let result: ComponentGrade | null = null;
         if (resolvedType === 'aura') {
             // For Aura, filePath might be the folder or the .cmp file
-            // AuraGrader expects the folder path usually, but let's check
             const bundlePath = filePath.endsWith('.cmp') ? path.dirname(filePath) : filePath;
-            return this.auraGrader.grade(bundlePath);
+            result = await this.auraGrader.grade(bundlePath);
         } else if (resolvedType === 'vf') {
-            return this.vfGrader.grade(filePath);
+            result = await this.vfGrader.grade(filePath);
         }
-        return null;
+
+        // Cache the result
+        if (result) {
+            this.gradeCache.set(resolvedPath, result);
+        }
+        return result;
     }
 
     private detectType(filePath: string): 'aura' | 'vf' {

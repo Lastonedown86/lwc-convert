@@ -40,10 +40,19 @@ async function fetchLatestVersion(): Promise<string | null> {
 }
 
 function parseVersion(version: string): number[] {
-    return version.replace(/^v/, '').split('.').map(n => parseInt(n, 10) || 0);
+    // Strip leading 'v' and pre-release/build suffixes (e.g., "1.2.3-beta.1+build")
+    const cleaned = version.replace(/^v/, '').replace(/[-+].*$/, '');
+    return cleaned.split('.').map(n => parseInt(n, 10) || 0);
+}
+
+function isPreRelease(version: string): boolean {
+    return /[-]/.test(version.replace(/^v/, ''));
 }
 
 function isNewerVersion(latest: string, current: string): boolean {
+    // Don't suggest upgrading to pre-release versions
+    if (isPreRelease(latest)) return false;
+
     const latestParts = parseVersion(latest);
     const currentParts = parseVersion(current);
 
@@ -119,8 +128,14 @@ export async function checkForUpdates(): Promise<{ hasUpdate: boolean; latestVer
  */
 export function formatUpdateMessage(latestVersion: string, currentVersion: string): string {
     const versionText = `${currentVersion} → ${latestVersion}`;
-    return `\x1b[33m  ╭───────────────────────────────────────────────╮
-  │  Update available: ${versionText.padEnd(25)} │
-  │  Run \x1b[36mnpm i -g ${CLI_NAME}\x1b[33m to update       │
-  ╰───────────────────────────────────────────────╯\x1b[0m`;
+    const updateCmd = `npm i -g ${CLI_NAME}`;
+    // Dynamically size the box to fit content
+    const line1Content = `  Update available: ${versionText}  `;
+    const line2Content = `  Run ${updateCmd} to update  `;
+    const innerWidth = Math.max(line1Content.length, line2Content.length);
+    const border = '─'.repeat(innerWidth);
+    return `\x1b[33m  ╭${border}╮
+  │${line1Content.padEnd(innerWidth)}│
+  │  Run \x1b[36m${updateCmd}\x1b[33m to update${' '.repeat(innerWidth - line2Content.length)}  │
+  ╰${border}╯\x1b[0m`;
 }

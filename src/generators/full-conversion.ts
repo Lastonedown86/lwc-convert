@@ -16,6 +16,7 @@ import { generateDataAccessLayer } from '../transformers/vf-to-lwc/data-binding'
 import { generateAuraToLwcTests, generateBehaviorSpecDocument, GeneratedTest } from './test-generator';
 import { LwcBundle, toPascalCase, toLwcName } from '../utils/file-io';
 import { logger } from '../utils/logger';
+import { DEFAULT_API_VERSION } from '../cli/options';
 import {
   ConversionConfidence,
   ConfidenceFactor,
@@ -63,7 +64,7 @@ function generateMetaXml(
   }
 ): string {
   const {
-    apiVersion = '62.0',
+    apiVersion = DEFAULT_API_VERSION,
     isExposed = true,
     targets = ['lightning__RecordPage', 'lightning__AppPage', 'lightning__HomePage'],
     description,

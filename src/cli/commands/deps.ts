@@ -15,7 +15,7 @@ import { formatMermaidOutput, formatSimpleMermaidOutput } from '../../dependency
 export interface DepsCommandOptions {
   type: 'aura' | 'vf' | 'both';
   output?: string;
-  format: 'console' | 'json' | 'mermaid' | 'html' | 'dot';
+  format: 'console' | 'json' | 'mermaid';
   conversionOrder: boolean;
   focus?: string;
   depth: string;
@@ -98,16 +98,6 @@ export async function analyzeDeps(
         } else {
           console.log(output);
         }
-        break;
-
-      case 'html':
-        logger.warn('HTML format not yet implemented. Using console output.');
-        formatConsoleOutput(graph, conversionOrder, options.showOrphans);
-        break;
-
-      case 'dot':
-        logger.warn('DOT format not yet implemented. Using console output.');
-        formatConsoleOutput(graph, conversionOrder, options.showOrphans);
         break;
 
       case 'console':

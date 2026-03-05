@@ -5,7 +5,7 @@
  */
 
 import { Command } from 'commander';
-import { CLI_NAME, CLI_DESCRIPTION, CLI_VERSION, DEFAULT_OUTPUT_DIR } from './cli/options';
+import { CLI_NAME, CLI_DESCRIPTION, CLI_VERSION, DEFAULT_OUTPUT_DIR, DEFAULT_API_VERSION } from './cli/options';
 import { convertAura } from './cli/commands/aura';
 import { convertVf } from './cli/commands/vf';
 import { logger } from './utils/logger';
@@ -40,6 +40,7 @@ program
   .description('Convert an Aura component bundle to LWC')
   .option('--full', 'Run full automated conversion (default: scaffolding only)', false)
   .option('-o, --output <dir>', 'Output directory', DEFAULT_OUTPUT_DIR)
+  .option('--api-version <version>', 'Salesforce API version for meta.xml', DEFAULT_API_VERSION)
   .option('--open', 'Open output folder in file explorer after conversion', false)
   .option('--preview', 'Generate and open HTML preview of converted component', false)
   .option('--dry-run', 'Preview conversion without writing files', false)
@@ -53,6 +54,7 @@ program
       verbose: options.verbose,
       open: options.open,
       preview: options.preview,
+      apiVersion: options.apiVersion,
     });
   });
 
@@ -62,6 +64,7 @@ program
   .description('Convert a Visualforce page to LWC')
   .option('--full', 'Run full automated conversion (default: scaffolding only)', false)
   .option('-o, --output <dir>', 'Output directory', DEFAULT_OUTPUT_DIR)
+  .option('--api-version <version>', 'Salesforce API version for meta.xml', DEFAULT_API_VERSION)
   .option('--controller <path>', 'Include Apex controller file for analysis')
   .option('--open', 'Open output folder in file explorer after conversion', false)
   .option('--preview', 'Generate and open HTML preview of converted component', false)
@@ -77,6 +80,7 @@ program
       controller: options.controller,
       open: options.open,
       preview: options.preview,
+      apiVersion: options.apiVersion,
     });
   });
 
@@ -281,7 +285,7 @@ if (filteredArgs.length === 0) {
             await grade(answers.gradingOptions.targetPath, {
               type: answers.gradingOptions.type,
               output: answers.gradingOptions.exportDir,
-              format: answers.gradingOptions.exportFormats?.[0],
+              format: answers.gradingOptions.exportFormats?.[0] as 'json' | 'csv' | 'console' | undefined,
               detailed: answers.gradingOptions.detailLevel === 'detailed',
               dryRun: false,
               verbose: false

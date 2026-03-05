@@ -21,9 +21,21 @@ function getComplexityIcon(complexity: string): string {
   return complexity.includes('Complex') || complexity === 'Moderate' ? '⚠' : '✓';
 }
 
+export interface GradeCommandOptions {
+    type?: 'aura' | 'vf' | 'both';
+    output?: string;
+    format?: 'json' | 'csv' | 'console';
+    detailed?: boolean;
+    sortBy?: string;
+    filter?: string;
+    dryRun?: boolean;
+    verbose?: boolean;
+    interactive?: boolean;
+}
+
 export async function grade(
     target: string | undefined,
-    options: any
+    options: GradeCommandOptions
 ): Promise<void> {
     const grader = new Grader();
 
@@ -112,6 +124,7 @@ export async function grade(
         if (options.format === 'json') {
             const output = { summary, components: filteredResults };
             if (options.output) {
+                await fs.ensureDir(path.dirname(path.resolve(options.output)));
                 await fs.writeJson(options.output, output, { spaces: 2 });
                 logger.success(`Results written to ${options.output}`);
             } else {
@@ -120,6 +133,7 @@ export async function grade(
         } else if (options.format === 'csv') {
             const csvContent = generateCsvReport(filteredResults, summary);
             if (options.output) {
+                await fs.ensureDir(path.dirname(path.resolve(options.output)));
                 await fs.writeFile(options.output, csvContent);
                 logger.success(`CSV report written to ${options.output}`);
             } else {
@@ -171,11 +185,19 @@ function filterResults(results: ComponentGrade[], filter?: string): ComponentGra
     if (filter.startsWith('score:')) {
         const condition = filter.substring(6);
         if (condition.startsWith('<')) {
-            const val = parseInt(condition.substring(1));
+            const val = parseInt(condition.substring(1), 10);
+            if (isNaN(val)) {
+                logger.warn(`Invalid score filter value: "${condition.substring(1)}". Expected a number.`);
+                return results;
+            }
             return results.filter(r => r.overallScore < val);
         }
         if (condition.startsWith('>')) {
-            const val = parseInt(condition.substring(1));
+            const val = parseInt(condition.substring(1), 10);
+            if (isNaN(val)) {
+                logger.warn(`Invalid score filter value: "${condition.substring(1)}". Expected a number.`);
+                return results;
+            }
             return results.filter(r => r.overallScore > val);
         }
     }
